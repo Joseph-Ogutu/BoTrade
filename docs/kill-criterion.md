@@ -57,4 +57,146 @@ Results from the old bot, `backtest_results.json`, or any run after the holdout 
 
 ## Amendments
 
-(none)
+AMENDMENT-1-MARKER: kill-criterion amendment 1
+
+## Amendment 1: Gate 1 is a randomness-structure gate, run once on post-amendment ticks
+
+Status: SUPERSEDES the parts of v1 listed in A1.1. Everything in v1 above this heading stays on the page unedited; the only change to the v1 file is that the line that read "(none)" under this heading was replaced by this amendment. v1's own timestamp line says it was written on 2026-11-01. That is the local Nairobi date; the commit time (UTC) is the authoritative one and is given in A1.2.
+
+### A1.1 What this supersedes and what it keeps
+
+Superseded:
+
+- v1 section 1, the definition of the holdout ("the most recent block of collected data, fixed by a hash"). Replaced by A1.4.
+- v1 section 3, the planning n_min table (r from 0.80 to 0.95 were assumptions). Replaced by the tables generated from observed payouts in docs/power-gate1.md.
+- v1 section 4, the control experiment as the first gate. Gate 1 is now a structure gate (A1.5). v1's control experiment is kept and extended in A1.6.
+- The word "Gate 1" in the handbook roadmap (edge test on holdout). From now on: Gate 1 = structure gate (this amendment). The v1 edge conditions become Gate 1b and may only be evaluated if Gate 1 finds structure (A1.7).
+
+Kept unchanged: v1 section 2 (edge pass conditions 1 to 5), section 5 (outcomes: a documented "no edge" is a success), section 6 (things that do not count).
+
+### A1.2 What had been observed before each version (disclosure)
+
+All times UTC. "Observed" means looked at by any agent or by the owner as far as this repository's record shows.
+
+Before v1 (commit 87f96c1, committed 2026-10-31T21:39:27Z):
+
+- Symbols: no live symbol list had been queried. The handbook named 1HZ100V as a control and the old bot's code used 1HZ10V and R_100.
+- Contract types: none queried live. Digit contract names were known from the old bot's code and from general knowledge.
+- Payouts: none observed. The v1 planning table used r = 0.80 to 0.95 as assumptions. The old bot assumed 0.95 in its backtest, a floor of 0.80 in its trade filter and "88%" in a prompt; none of these was a quote.
+- Ticks: none from the new API had been collected. The old bot's development database held 1,160 R_100 ticks (2026-04-04T21:33:04Z to 2026-04-07T17:19:52Z); the audit read only the row count and time range. The old backtest_results.json was judged synthetic and ignored.
+- Tick analysis: none.
+
+Before this amendment (state of the repository at the amendment commit; the commit time is determined mechanically per A1.4):
+
+- Symbols: the full public active_symbols list, 89 symbols, captured 2026-10-31T22:00:51Z (docs/instruments.md, docs/evidence/).
+- Contract types: contracts_for for 1HZ100V, R_100, cryBTCUSD, cryETHUSD, frxEURUSD and OTC_SPC, captured 2026-10-31T22:01:07Z to 22:01:20Z. Result: digit contracts (1 to 10 ticks) exist on 1HZ100V and R_100; crypto offers multipliers only; forex and OTC indices offer 15 minute or longer contracts.
+- Payouts: proposal quotes captured 2026-10-31T22:01:39Z to 22:03:35Z on the public endpoint (docs/power-gate1.md, generated from the evidence file). Stake 1.00, 5 ticks: DIGITEVEN, DIGITODD and DIGITUNDER 5 paid 1.95; DIGITOVER 5 paid 2.43; DIGITMATCH 5 paid 8.93; DIGITDIFF 5 paid 1.09. Stake 0.35 (minimum), DIGITEVEN: paid 0.66.
+- Ticks: 628 ticks sit in the local file data/ticks.sqlite (1HZ100V 180, R_100 90, cryBTCUSD 179, cryETHUSD 179), epochs 2026-10-31T22:14:08Z to 22:17:16Z, collected by a container test run on the dev machine. Two earlier smoke runs (24 and 23 ticks, files since deleted) and the old bot's 1,160 R_100 ticks also exist. All of these are before the amendment commit and are excluded from Gate 1 by A1.4. They stay unanalysed.
+- Operations that touched ticks, complete list: row counts; minimum and maximum epoch; a contiguity check that counts missing seconds (gap count, reported as 0 in the smoke runs); a row-for-row equality check between a live file and its restored backup; heartbeat ages. No digit frequency, parity count, run count, autocorrelation, digit pair, plot or strategy of any kind has been computed on any tick. The only statistics code in the repository (src/derivbot/stats/edge.py) has been run on synthetic numbers in unit tests only.
+- Why these symbol tiers: the confirmatory tier is the two instruments with 5-tick digit contracts, the tick cadence needed for large samples (1 s and 2 s) and observed payouts. The other six were collected for exploration. This choice was made by the owner after the contracts_for and proposal results above had been reported to them and before any tick analysis. The exact time of the owner's message is not recorded in the repository; it precedes this commit.
+
+### A1.3 Symbols (frozen)
+
+```json GATE1-REGISTRATION
+{
+  "amendment": 1,
+  "confirmatory_symbols": ["1HZ100V", "R_100"],
+  "exploratory_symbols": ["cryBTCUSD", "cryETHUSD", "frxEURUSD", "frxGBPUSD", "frxUSDJPY", "frxXAUUSD"],
+  "nominal_interval_s": {"1HZ100V": 1, "R_100": 2},
+  "exploratory_segment_break_s": 60,
+  "tests": ["uniformity_chi2", "parity_runs", "autocorrelation_portmanteau_10", "pair_independence_chi2"],
+  "alpha_family": 0.05,
+  "correction": "holm",
+  "confirmatory_family_size": 8,
+  "exploratory_family_size": 24,
+  "replication_alpha": 0.05,
+  "min_valid_digits": {"uniformity_chi2": 10000, "parity_runs": 10000, "autocorrelation_portmanteau_10": 10000, "pair_independence_chi2": 20000},
+  "min_ticks_confirmatory": 100000,
+  "min_ticks_exploratory": 20000,
+  "shuffle_controls_per_symbol": 200,
+  "data_cutoff_utc": "2026-11-15T00:00:00Z",
+  "data_cutoff_epoch": 1794700800,
+  "run_date_utc": "2026-11-15",
+  "break_even": {"stake_1.00": 0.512821, "stake_0.35": 0.530303}
+}
+```
+
+- Confirmatory tier (the only tier that can decide Gate 1): 1HZ100V and R_100.
+- Exploratory tier (collected and tested, never decisive): cryBTCUSD, cryETHUSD, frxEURUSD, frxGBPUSD, frxUSDJPY, frxXAUUSD. Any finding in this tier is a lead only. It needs fresh data collected after a new amendment, and it cannot start strategy work.
+- The list is frozen. Adding, removing or swapping a confirmatory symbol after this commit invalidates the confirmatory tier for the affected run. config/collector.json must contain exactly these eight symbols (a test checks it).
+
+### A1.4 Holdout, data definition and what may be looked at
+
+Holdout start H0 = the committer timestamp, in Unix seconds, of the first commit whose version of docs/kill-criterion.md contains the text AMENDMENT-1-MARKER. It is computed by `python scripts/holdout_start.py` (git pickaxe), not typed. The same value is copied into docs/gates.md in a later commit as a cross-check. Pushing the amendment commit to a remote immediately would add an external timestamp and is recommended.
+
+Eligible ticks: ticks of a registered symbol with H0 < epoch <= data_cutoff_epoch (1794700800, which is 2026-11-15T00:00:00Z). The comparison uses the tick's server epoch, so a tick generated before the commit cannot be eligible however late it was stored. Ticks are deduplicated on (symbol, epoch). Nothing with epoch <= H0 may be used to confirm any hypothesis, in this or any later gate.
+
+Digit: the last character of the quote formatted with exactly pip_size decimals (Decimal arithmetic, no floats). For example quote 1304.95 with pip_size 2 gives 5. Whether Deriv settles digit contracts on this same digit is UNVERIFIED and must be checked against contract results before any edge claim.
+
+Segments: ticks are ordered by epoch. A new segment starts wherever the epoch difference to the previous eligible tick exceeds the symbol's nominal interval (1 s for 1HZ100V, 2 s for R_100) or, for exploratory symbols, 60 s. Serial statistics never use a pair of ticks from different segments.
+
+Before the Gate 1 run, on ticks with epoch > H0, the only permitted operations are: row counts; minimum and maximum epoch; gap counts; the health check script and heartbeat log. Anything that reads or aggregates digit values of those ticks is forbidden until the run. Doing so voids the confirmatory tier of the run.
+
+### A1.5 The tests, their count, alpha, correction and minimum samples
+
+Null hypothesis for every test: eligible digits are independent and uniform on 0 to 9. P-values are upper tails of the stated reference distribution (two-sided for the runs test). Four tests, applied per symbol:
+
+1. `uniformity_chi2`: Pearson chi-square on the ten digit counts, expected N/10 each, df = 9.
+2. `parity_runs`: Wald-Wolfowitz runs test on the even/odd sequence (even = digit in 0,2,4,6,8), computed per segment and combined: z = (sum of runs - sum of E) / sqrt(sum of Var), with per segment E = 1 + 2*n1*n2/n and Var = 2*n1*n2*(2*n1*n2 - n) / (n^2 * (n-1)). Segments shorter than 10 ticks are dropped. Standard normal reference, two-sided.
+3. `autocorrelation_portmanteau_10`: with x the digit value, m the mean of used digits, D = sum of (x - m)^2, and for lags k = 1 to 10 the within-segment pairs only: r_k = (C_k / P_k) / (D / N) where C_k is the sum of (x_t - m)(x_(t+k) - m) over within-segment pairs and P_k their number. Q = sum over k of P_k * r_k^2, chi-square reference with df = 10.
+4. `pair_independence_chi2`: within each segment take non-overlapping pairs (d1,d2), (d3,d4), ... Build the 10 x 10 table of (first, second). Pearson chi-square of independence, df = 81. Non-overlapping pairs are used on purpose, because overlapping pairs reuse digits and break the reference distribution.
+
+Counts: 4 tests x 2 confirmatory symbols = 8 confirmatory tests (family size 8). 4 tests x 6 exploratory symbols = 24 exploratory tests (family size 24, a separate family). 32 tests in total.
+
+Error control: family-wise alpha = 0.05 per family, Holm step-down correction over the family. Holm is used because it is valid under any dependence between the tests. A test that cannot run (below its minimum, see below) counts as not rejected and the family size stays 8 (or 24).
+
+Minimum sample sizes (valid digits or pairs after segmenting): uniformity 10,000; runs 10,000; portmanteau 10,000 pairs at every lag 1 to 10; pair independence 20,000 digits (10,000 pairs). Gate 1 additionally requires at least 100,000 eligible ticks for each confirmatory symbol (about 1.2 days of 1HZ100V and 2.3 days of R_100 at the nominal rate); exploratory symbols need 20,000. A confirmatory symbol below its minimum makes the Gate 1 outcome "cannot conclude", never a pass.
+
+Why 100,000: docs/power-gate1.md shows a parity bias large enough to beat break-even at stake 1.00 (P(even) = 0.512821) needs about 19,448 digits for 80% power at alpha 0.05/8, two-sided; at the minimum stake (0.530303) about 3,479. 100,000 is more than five times the harder of the two.
+
+### A1.6 Break-even rates (from observed payouts) and the minimum stake
+
+p_be = stake / payout, from docs/power-gate1.md (public quotes, 2026-10-31T22:03:35Z):
+
+- Stake 1.00: payout 1.95, r = 0.95, p_be = 0.512821 for DIGITEVEN, DIGITODD and DIGITUNDER 5. DIGITOVER 5: p_be = 0.411523. DIGITMATCH 5: 0.111982. DIGITDIFF 5: 0.917431.
+- Stake 0.35 (minimum): payout 0.66, r = 0.8857, p_be = 0.530303, observed for DIGITEVEN only. The ratio at the minimum stake is worse than at 1.00. For other contracts at 0.35 it is UNVERIFIED.
+- If digits are uniform, P(even) = 0.5, so expectancy per unit stake is -0.025 at stake 1.00 and about -0.057 at stake 0.35 (0.5 x 0.8857 - 0.5 = -0.0571). Arithmetic on the null hypothesis, not a measurement.
+- The Gate 1b edge n_min uses these p_be values, delta = 0.02, power 0.80: 3,857 (stake 1.00) and 3,842 (stake 0.35) at K = 1; 6,959 and 6,933 at K = 8; 8,308 and 8,278 at K = 20 (docs/power-gate1.md). The binding value is the larger one for the K actually used, and the worse-ratio case must also be evaluated.
+- Payouts are public-endpoint quotes. Quotes for the demo account are UNVERIFIED and must be re-observed before Gate 1b. If they differ, the break-even rates are recomputed and an amendment records it before Gate 1b.
+
+### A1.7 Decision rule for Gate 1
+
+Let the confirmatory family be the 8 p-values from the run.
+
+- Structure found requires all three: (i) at least one confirmatory test rejects under Holm at 0.05; (ii) for the rejecting symbol and test, the eligible ticks split in time order into two halves of equal tick count each give an unadjusted p < 0.05 for the same test; (iii) the run is valid (below).
+- Inconclusive: (i) holds but (ii) fails. No strategy work. More data may be collected only under a new amendment, and only ticks after that amendment count.
+- No structure detected: no confirmatory test rejects. This is a recorded negative result and a successful outcome of the research. No strategy work. The project does not proceed to Gate 1b unless the owner writes a new amendment first.
+- Cannot conclude: a confirmatory symbol is below its minimum, or the run is invalid.
+- Statistical structure is not an edge. A rejection says digits deviate from the null, not that any contract beats p_be. For any parity-related finding the run also reports P(even) with a 95% Wilson interval beside p_be at both stakes. Strategy work (a hypotheses file, then Gate 1b under v1 section 2) starts only after "Structure found" AND only on ticks collected after a further amendment.
+- Exploratory results are printed in a separate table marked EXPLORATORY and are never used in this rule.
+
+Run validity: the run includes 200 shuffled copies of each confirmatory symbol's digit sequence (shuffled within segments). For each of the 4 tests, the fraction of shuffled copies rejecting at unadjusted alpha 0.05 must lie within 0.05 +/- 3 x sqrt(0.05 x 0.95 / 200), that is [0.0038, 0.0962]. With 8 such checks, a chance failure of a correct harness is about 2% (8 x 0.0027); that small risk is accepted and a failure is treated as a harness fault. If any check is outside the band, the run is INVALID: its results are not reported as findings, the fault is fixed, and the run is repeated only under a new amendment on ticks collected after that amendment.
+
+### A1.8 Harness control (must pass before the run)
+
+Before 2026-11-14T00:00:00Z the harness must pass these controls on simulated data only, with a fixed seed recorded in the harness, and the harness commit hash is then written to docs/gates.md. After that hash is recorded the harness is frozen; the run uses exactly that commit.
+
+- Negative control: 1,000 independent simulated series of i.i.d. uniform digits (length 50,000), including a variant with random gaps. For each test the rejection rate at unadjusted alpha 0.05 must lie within 0.05 +/- 3 x sqrt(0.05 x 0.95 / 1000), that is [0.0293, 0.0707]. The share of series with any Holm rejection in a family of 8 must be at most 0.0707. P-values per test must pass a Kolmogorov-Smirnov uniformity check at the 0.01 level.
+- Positive control: 200 series of length 100,000 per planted structure, each tested at unadjusted alpha 0.05. Every listed test must reject in at least 95% of the series for its structure:
+  - parity bias, P(even) = 0.53, other digits uniform within parity: `uniformity_chi2`;
+  - digit bias, digit 7 with probability 0.11, the rest equal: `uniformity_chi2`;
+  - parity persistence, the next parity equals the previous with probability 0.53: `parity_runs`;
+  - digit repetition, the next digit equals the previous with probability 0.12, otherwise uniform: `autocorrelation_portmanteau_10` and `pair_independence_chi2`.
+  A harness that fails a positive control is unfit and must be fixed (and this amendment amended) before the freeze.
+- The controls use simulated data only. They may not be run on any real tick before this amendment is committed.
+
+### A1.9 Run protocol
+
+- Fixed run date: 2026-11-15 (a Sunday), on or after data_cutoff_utc. The run happens ONCE.
+- It uses the frozen harness commit from A1.8, the eligible ticks of A1.4, and nothing else.
+- Output (all numbers, the full table of 32 p-values, the shuffled-copy rejection rates, the data counts and the commit hashes) is saved under docs/evidence/ with an `_evidence` UTC stamp and recorded in docs/gates.md in the same commit. The first complete result is binding. A technical crash that produced no results may be rerun with identical code and data. A completed run may not be rerun with changes.
+- If fewer than the minimum ticks exist on the run date, the outcome is "cannot conclude" and the date is not moved.
+
+### A1.10 Later amendments
+
+Allowed only before any digit-level analysis of ticks after H0, each dated, each stating what has been observed so far, none rewriting this text. An amendment made after the Gate 1 run began cannot change that run.
