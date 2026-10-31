@@ -1,0 +1,14 @@
+[Unit]
+Description=Derivbot collector daily backup (off-host)
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+User=deploy
+Group=deploy
+WorkingDirectory=/opt/derivbot
+EnvironmentFile=/etc/derivbot/backup.env
+ExecStart=/opt/derivbot/scripts/backup_daily.sh
+NoNewPrivileges=true
+PrivateTmp=true
