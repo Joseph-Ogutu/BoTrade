@@ -293,3 +293,36 @@ Rule added to A1.4: a tick is valid for digit analysis only if its stored quote 
   "tick_validity": "quote_decimals_equal_pip_size_else_exclude_and_report"
 }
 ```
+
+AMENDMENT-4-MARKER: kill-criterion amendment 4
+
+## Amendment 4: strategy code may be written before Gate 1 reports; running it on real ticks may not
+
+Status: made before the Gate 1 run and before any strategy, backtest or digit statistic has touched a real tick. It does not change H0, the symbol tiers, the four tests, alpha, Holm, the family sizes, the minimum samples, the data cutoff, the run date, or the harness (src/derivbot/gate1, which stays unfrozen and unchanged by this amendment). Amendments 1 to 3 above are unedited.
+
+### A4.1 What had been observed since Amendment 3
+
+Amendment 3 was committed 2026-10-31T22:52:19Z. Since then nothing has been read from or computed on any real tick. The work in that period was: the Gate 1 harness controls (simulated data only, results in docs/evidence/gate1_control_20261031T230012Z.json), the guarded real-run loader, and the build-phase components (Postgres schema, risk engine, kill switch, executor, reconciler, contract-level backtester), all tested on simulated data and on a fake exchange server. The only data from the real endpoint that any of that code reads is the stored proposal quotes (payout figures), never ticks.
+
+### A4.2 What this amendment changes
+
+The owner instructed, in the build-phase message, that strategy code is allowed now provided no parameter grid is chosen from real data, each hypothesis is registered in docs/hypotheses/ before any real-data run, and no real-data run happens until Gate 1 reports and the owner approves. The exact time of that message is not recorded in the repository; it precedes this commit.
+
+Accordingly this amendment supersedes ONE sentence of A1.7, "Strategy work (a hypotheses file, then Gate 1b under v1 section 2) starts only after Structure found": writing strategy code and registering hypotheses no longer waits for the Gate 1 result. Nothing else in A1.7 changes.
+
+### A4.3 What stays exactly as before
+
+- No strategy, backtest, digit statistic or other analysis of real collected ticks until Gate 1 has reported AND the owner has written an approval line in docs/approvals.md. The code refuses otherwise (derivbot.backtest.permit requires the approval line and a matching Gate 1 run record).
+- Gate 1b (v1 section 2) is evaluated only if Gate 1 returns "Structure found", only on ticks collected after a further amendment, and with K counted from every variant registered in docs/hypotheses/INDEX.md.
+- Parameters are fixed in advance by convention and written into docs/hypotheses/ before any real-data run. A grid is a finite list committed in advance; it is not narrowed or extended after seeing data. Selecting a parameter set by looking at real-data results is forbidden.
+- Strategies are deterministic code. No LLM is in the trading loop.
+
+```json GATE1-REGISTRATION-A4
+{
+  "amendment": 4,
+  "strategy_code_before_gate1": true,
+  "real_data_runs_require": "gate1_reported_and_owner_approval_in_docs_approvals_md",
+  "hypotheses_dir": "docs/hypotheses",
+  "variant_index": "docs/hypotheses/INDEX.md"
+}
+```

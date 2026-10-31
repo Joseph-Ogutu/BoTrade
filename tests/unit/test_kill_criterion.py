@@ -33,7 +33,7 @@ def test_original_v1_text_is_preserved_unedited():
 
 def test_registration_block_is_single_and_consistent_with_the_text():
     reg = load_registration()
-    assert reg["amendments"] == [1, 2, 3]
+    assert reg["amendments"] == [1, 2, 3, 4]
     conf, expl, tests = reg["confirmatory_symbols"], reg["exploratory_symbols"], reg["tests"]
     assert conf == ["1HZ100V", "R_100"]
     assert len(tests) == 4 and len(set(tests)) == 4
@@ -159,3 +159,17 @@ def test_amendment_3_registration_is_consistent():
     lo, hi = reg["validity_band"]
     se = (0.05 * 0.95 / 200) ** 0.5
     assert abs(lo - round(0.05 - 3 * se, 4)) < 1e-9 and abs(hi - round(0.05 + 3 * se, 4)) < 1e-9
+
+
+def test_amendment_4_is_append_only_after_amendment_3_and_does_not_touch_the_registered_gate1_values():
+    try:
+        a3 = _git("log", "--format=%h", "-SAMENDMENT-3-MARKER", "--", "docs/kill-criterion.md").split()[-1]
+        before = _git("show", f"{a3}:docs/kill-criterion.md")
+    except (subprocess.CalledProcessError, IndexError):
+        pytest.skip("amendment 3 commit not available in this checkout")
+    current = (ROOT / "docs" / "kill-criterion.md").read_text()
+    assert current.startswith(before) and current.count("AMENDMENT-4-MARKER") == 1
+    reg = load_registration()
+    assert reg["strategy_code_before_gate1"] is True and reg["hypotheses_dir"] == "docs/hypotheses"
+    assert reg["data_cutoff_epoch"] == 1794700800 and reg["confirmatory_symbols"] == ["1HZ100V", "R_100"]
+    assert reg["tests"] and reg["alpha_family"] == 0.05
