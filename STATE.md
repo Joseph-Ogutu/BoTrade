@@ -42,6 +42,7 @@ Phase checklist (tick only when acceptance criteria in HANDBOOK section 13 are m
 
 ## 3. Done so far (append, newest first)
 
+- 2026-11-01: step 1 public-endpoint probes (active_symbols 89 symbols, contracts_for, proposal quotes without auth, ticks_history limits, observed error shapes), evidence: docs/api-notes.md "Public endpoint probes", docs/instruments.md, docs/evidence/. Phase 0 items 1, 2, 5 answered for the PUBLIC view only; DEMO confirmation still needed
 - 2026-11-01: credential-free Phase 3 and collector work. 88 tests pass. Redaction (and a found DEBUG URL leak in websockets), rate limiter, typed messages + request builders checked against vendored schemas (schemas/deriv), fake Deriv server with failure injection (drop before/after processing, delay, duplicate, error, hold/reorder, stream drop, 401), reconnecting public tick stream with stall detection, SQLite store, gap detection, collector CLI. Live public endpoint verified with no credentials. Evidence: commits fb56cd7 through the latest, docs/api-notes.md schema and live sections
 - 2026-11-01: Phase 0 docs-based answers recorded in docs/api-notes.md (items 3, 6, 8 answered; 4, 5, 7 partial; 9, 10 not found); docs/kill-criterion.md pre-registered; derivbot.stats.edge (Wilson, exact binomial, power, Holm) with 14 passing unit tests; docs/power-table.md, evidence: commit after 19af90c
 - 2026-11-01: HANDBOOK saved as docs/HANDBOOK.md, .env.example aligned to it (DERIV_PAT_DEMO etc.), api-notes.md restructured to the ten Phase 0 items, evidence: commit following c399a69
