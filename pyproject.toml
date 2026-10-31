@@ -9,6 +9,7 @@ dependencies = []
 pythonpath = ["src"]
 testpaths = ["tests"]
 addopts = "-q"
+asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 100

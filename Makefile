@@ -1,7 +1,9 @@
 .PHONY: test power-table
 
+PY := $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python)
+
 test:
-	python -m pytest -q
+	$(PY) -m pytest
 
 power-table:
-	python scripts/power_table.py > docs/power-table.md
+	$(PY) scripts/power_table.py > docs/power-table.md
