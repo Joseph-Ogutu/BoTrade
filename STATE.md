@@ -12,7 +12,7 @@ Personal Deriv trading bot, rebuilt from scratch as a thin asyncio Python servic
 
 ## 2. Where we are
 
-Current phase: Phase 0 (API verification) and housekeeping
+Current phase: Phase 0 (API verification, partly done) with credential-free Phase 3 and Phase 4 pieces built ahead, by owner instruction
 Current gate: none passed yet
 
 Phase checklist (tick only when acceptance criteria in HANDBOOK section 13 are met and evidence is committed):
@@ -22,7 +22,12 @@ Phase checklist (tick only when acceptance criteria in HANDBOOK section 13 are m
   - not done: old bot not yet archived (owner action), token file still sits in the old repo root (see section 5)
 - [ ] Phase 0: docs/api-notes.md answers all ten items in HANDBOOK section 3
 - [ ] Phase 3: Deriv adapter, smoke test passes on DEMO, fake Deriv server tests pass
+  - done (credential-free): typed messages and schema-checked request builders, rate limiter, fake Deriv server with failure injection, log redaction, public reconnecting tick stream
+  - held until DERIV_APP_ID_DEMO is in .env: REST client, OTP flow, authenticated WS session (balance, proposal, buy), scripts/smoke_demo.py, DEMO smoke test, .claude/skills
+  - not done: buy/portfolio reconcile logic against the fake (belongs with the executor, Phase 7 and 8)
 - [ ] Phase 4: collector running, gap report, candle rebuild test
+  - done: SQLite tick store, gap detection, collector, scripts/collect_ticks.py, 2 short live runs on the public endpoint (not a continuous collection)
+  - not done: Postgres tables and Alembic, backfill via ticks_history (limits UNVERIFIED), candle builder, a long-running collector under Docker, N days of data
 - [ ] Gate 1 prep: docs/kill-criterion.md committed BEFORE any strategy test, power calculation done
   - done: kill-criterion.md committed, planning power table (n_min about 3,800 at K=1 and about 8,250 at K=20 for delta 0.02)
   - not done: binding n_min needs real r from proposal (api-notes item 2); holdout hash in docs/gates.md; control experiment harness
@@ -37,6 +42,7 @@ Phase checklist (tick only when acceptance criteria in HANDBOOK section 13 are m
 
 ## 3. Done so far (append, newest first)
 
+- 2026-11-01: credential-free Phase 3 and collector work. 89 tests pass. Redaction (and a found DEBUG URL leak in websockets), rate limiter, typed messages + request builders checked against vendored schemas (schemas/deriv), fake Deriv server with failure injection (drop before/after processing, delay, duplicate, error, hold/reorder, stream drop, 401), reconnecting public tick stream with stall detection, SQLite store, gap detection, collector CLI. Live public endpoint verified with no credentials. Evidence: commits fb56cd7 through the latest, docs/api-notes.md schema and live sections
 - 2026-11-01: Phase 0 docs-based answers recorded in docs/api-notes.md (items 3, 6, 8 answered; 4, 5, 7 partial; 9, 10 not found); docs/kill-criterion.md pre-registered; derivbot.stats.edge (Wilson, exact binomial, power, Holm) with 14 passing unit tests; docs/power-table.md, evidence: commit after 19af90c
 - 2026-11-01: HANDBOOK saved as docs/HANDBOOK.md, .env.example aligned to it (DERIV_PAT_DEMO etc.), api-notes.md restructured to the ten Phase 0 items, evidence: commit following c399a69
 - 2026-11-01: new repo scaffolded (.gitignore, CLAUDE.md, STATE.md, Makefile, .env.example, docs/api-notes.md skeleton), evidence: first commit in this repo
@@ -48,6 +54,7 @@ Phase checklist (tick only when acceptance criteria in HANDBOOK section 13 are m
 
 ## 5. Next actions (ordered)
 
+0. Owner: add DERIV_APP_ID_DEMO (and the demo PAT and account ID) to .env. Agents do not open token files; once .env is populated, the held authenticated work above can start.
 1. Owner: follow HANDBOOK 12 Step A. Register a NEW application of type PAT at developers.deriv.com (sign up with a different email if it redirects to a trading account), create a demo-scope PAT (`trade` only), and put App ID, PAT and demo account ID in .env (git-ignored, chmod 600). If "Ogutu Bot API TOKEN pat.txt" is that PAT, move it out of the old repo root first; it has not been opened by any agent. Never paste the PAT into chat.
 2. Owner: archive the old bot (do not commit it; its token file is not git-ignored).
 3. Owner: answer the four questions in HANDBOOK 16 (section 7 below).

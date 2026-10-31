@@ -15,10 +15,10 @@ Do not paste PATs, OTP URLs or account IDs here. Use [REDACTED].
 | 1 | Contract types, durations, min/max stakes from `contracts_for` on DEMO | NEEDS DEMO | none yet |
 | 2 | Real payout ratio from `proposal` per candidate contract (sets p_be) | NEEDS DEMO | none yet. Blocks n_min (see kill-criterion.md) |
 | 3 | Does `buy` have an idempotency token or client reference | DOCS: no | see 3 below |
-| 4 | How `proposal_open_contract` reports settlement; behaviour after reconnect | PARTIAL | see 4 below |
+| 4 | How `proposal_open_contract` reports settlement; behaviour after reconnect | SCHEMA for fields, NEEDS DEMO for reconnect | see 4 below and Schema findings |
 | 5 | `ticks_history` max `count` and pagination | PARTIAL, NOT FOUND for max | see 5 below |
 | 6 | OTP single-use and lifetime | DOCS | see 6 below |
-| 7 | Fields returned by `portfolio` and `profit_table` | PARTIAL, NOT FOUND for fields | see 7 below |
+| 7 | Fields returned by `portfolio` and `profit_table` | SCHEMA | see Schema findings |
 | 8 | Can the demo balance be reset | DOCS: yes | see 8 below |
 | 9 | Is legacy `ws.binaryws.com` deprecated, and when | NOT FOUND | see 9 below |
 | 10 | Terms on automated trading (Kenya, owner's account type) | NOT FOUND in docs | owner compliance check, not code |
@@ -91,6 +91,28 @@ Source: https://developers.deriv.com/docs/options/reset-demo-balance/
 - No terms-of-service page and no statement permitting or prohibiting bots. The API overview lists automated strategies as a capability of the platform's own Automation API. That is not permission for third-party bots on the owner's account type.
 - Limits page: Deriv reserves the right to change limits and invites contact about application-specific limits.
 - Owner action: check Deriv's terms and ask support, in writing, whether automated trading via PAT is allowed for the account type and Kenya.
+
+## Schema findings (official deriv-api-schemas, vendored in schemas/deriv, 2026-11-01)
+
+Source and checksum: schemas/deriv/SOURCE.md. These are the published JSON schemas, not live responses. Live confirmation on DEMO is still needed.
+
+- Proposal request uses `underlying_symbol`, not `symbol` (required: `proposal`, `contract_type`, `currency`, `underlying_symbol`). The old bot used `symbol`. Requests have `additionalProperties: false`, so unknown fields are rejected by the schema.
+- `buy` and `forget` ids must match `^[\w-]{32,128}$` (parameter buy is the literal `1`). The adapter refuses `1`.
+- buy_response (`buy`) has `balance_after`, `buy_price`, `contract_id`, `payout`, `transaction_id`, `purchase_time`, `start_time`. So balance_after comes from the buy response.
+- proposal_open_contract response has no `balance_after`. The old bot read it from there (a defect, item 20 area of the audit). It has `is_sold`, `is_expired`, `status`, `sell_price`, `profit`, `buy_price`, `payout`, `entry_spot`, `exit_spot`, `date_settlement`. Money fields there are STRINGS (`profit`, `payout`, `sell_price`, `buy_price`). The `status` description says it is `sold` if sold back early; the exact values at expiry (won/lost) are UNVERIFIED.
+- portfolio contracts: `contract_id`, `buy_price`, `payout`, `contract_type`, `underlying_symbol`, `transaction_id`, `purchase_time`, `expiry_time`, `date_start`, `currency`, `longcode`, `shortcode`, `auto_run_id`. No `is_expired` field, so the old bot's reconcile filter (`is_expired == 0`) cannot work against this schema.
+- profit_table transactions: `contract_id`, `buy_price`, `sell_price`, `payout`, `purchase_time`, `sell_time`, `transaction_id`, `underlying_symbol`, `contract_type`, `longcode`, `shortcode`, `duration_type`, plus multiplier fields. `count` is returned alongside.
+- tick: `symbol`, `epoch`, `quote`, `pip_size` (required), `ask`, `bid`, `id`. balance: `balance`, `currency`, `loginid` (required), `id`.
+- The error object shape is NOT in these schemas. The adapter assumes `{"error": {"code", "message"}}` as the old bot saw on the legacy API. UNVERIFIED for the new API. Error code strings used by the fake server are invented.
+- ws_public request: "No authentication, OTP, or query parameters are required."
+- OpenAPI file lists REST paths including `/trading/v1/options/accounts`, `.../accounts/{accountId}/otp`, `.../accounts/{account_id}/reset-demo-balance` and `bulk-purchase`. The bot must allow-list REST paths and never call reset-demo-balance, bulk-purchase, or anything outside accounts and otp.
+
+## Live check: public endpoint (2026-11-01, no credentials)
+
+- `wss://api.derivws.com/trading/v1/options/ws/public` accepted a connection with no token, no OTP and no App ID, and streamed ticks for `1HZ100V` and `R_100` subscribed on one connection.
+- Cadence: `1HZ100V` about 1 tick per second, `R_100` about 1 tick per 2 seconds. Epochs were contiguous with no gaps in two runs of about 15 to 25 seconds each (24 and 23 ticks). pip_size was 2 for both in the fake only; the live value was not recorded here.
+- Connection setup took about 6 seconds in one run (DNS/TLS). Do not assume instant connects.
+- Tooling finding: the `websockets` library logs the full request URL, including `?otp=...`, at DEBUG. `derivbot.common.logs.quiet_transport_loggers()` caps those loggers and is covered by a test. Any process that uses OTP URLs must call `setup_logging()`.
 
 ## Rate limits (DOCS, https://developers.deriv.com/docs/limits/)
 
