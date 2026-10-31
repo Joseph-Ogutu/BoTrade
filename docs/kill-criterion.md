@@ -200,3 +200,53 @@ Before 2026-11-14T00:00:00Z the harness must pass these controls on simulated da
 ### A1.10 Later amendments
 
 Allowed only before any digit-level analysis of ticks after H0, each dated, each stating what has been observed so far, none rewriting this text. An amendment made after the Gate 1 run began cannot change that run.
+
+AMENDMENT-2-MARKER: kill-criterion amendment 2
+
+## Amendment 2: contiguity and the tests that need it
+
+Status: made BEFORE the harness is frozen and BEFORE any digit-level statistic has been computed on any real tick. It does not change the holdout start H0, the symbol tiers, the four tests, the family sizes, alpha, Holm, the minimum sample sizes, the decision rule or the run date of Amendment 1. It makes A1.4 and A1.5 exact where they were loose. Amendment 1 above is unedited; this amendment only adds text after it.
+
+### A2.1 What had been observed since Amendment 1
+
+All times UTC. Amendment 1 was committed 2026-10-31T22:35:49Z (the holdout start).
+
+- Backfill (scripts/backfill_holdout.py, report docs/evidence/backfill_report_20261031T224344Z.json): ticks with epoch after H0 for 1HZ100V (447 rows, 22:35:50Z to 22:43:16Z) and R_100 (230 rows, 22:35:50Z to 22:43:28Z), 0 gaps in either, stored with source=backfill. Nineteen streamed quotes were compared with the history quotes for the same epochs and all were equal.
+- Epoch spacing (epochs only, quote values not read), in the backfill file: 1HZ100V 446 intervals, all exactly 1 s; R_100 229 intervals, all exactly 2 s. In the earlier local collector file (before H0, excluded from Gate 1): 1HZ100V had 177 intervals of 1 s, one of 3 s and one of 7 s; R_100 had 87 of 2 s, one of 4 s and one of 8 s. Those longer intervals coincide with a container stop and a server-side reconnect.
+- Computed on real ticks: counts, minimum and maximum epoch, gap counts, epoch interval histograms, the stream-versus-history quote equality check. No digit frequency, parity count, run count, autocorrelation, digit pair or plot has been computed on any real tick. The statistical functions of the harness did not exist yet, and nothing in the repository has been run on real digits.
+
+### A2.2 Maximum contiguous gap (the number and the reason)
+
+Two ticks are contiguous if and only if their epochs differ by exactly the nominal interval: 1 second for 1HZ100V and 2 seconds for R_100. Any larger difference ends the segment. In other words the maximum gap that still counts as contiguous is zero missing ticks.
+
+Reasons:
+
+1. A missing tick turns an adjacent pair into a pair two steps apart. The serial tests (runs, autocorrelation, pair independence) are defined on consecutive ticks, and the hypotheses they probe (that one tick's digit carries information about the next) are about lag 1. Mixing lags changes what the statistic measures.
+2. The data show no tolerance is needed. In the sample above, spacing is exactly nominal everywhere except at real outages, so a strict rule discards almost nothing.
+3. Data are plentiful (about 86,400 ticks a day for 1HZ100V and 43,200 for R_100 at the nominal rate), so discarding pairs across outages costs little power.
+4. A strict threshold cannot be tuned after seeing results, which a tolerance of "a few seconds" could be.
+
+Exploratory symbols keep the A1 rule: a new segment starts when the epoch difference exceeds 60 seconds. Their tick spacing is irregular and adjacency is only loosely meaningful; their results stay exploratory.
+
+### A2.3 Which tests need contiguous segments
+
+- `uniformity_chi2` may use ALL eligible digits, regardless of segment boundaries and regardless of segment length. Uniformity of the marginal distribution does not depend on adjacency.
+- `parity_runs`, `autocorrelation_portmanteau_10` and `pair_independence_chi2` run within contiguous segments ONLY. They use only segments with at least 10 ticks. Digits in shorter segments are used by the uniformity test only. For these three tests the digit mean m, the sum D and the count N in the A1.5 formulas are taken over the digits of the used segments only. No pair of ticks from different segments is ever used, and the pairs of `pair_independence_chi2` start at the first tick of each segment.
+- The minimum sample sizes of A1.5 apply to the digits and pairs that remain after these rules.
+
+### A2.4 Merging sources
+
+Ticks may come from the streaming collector (source=stream) and from backfill (source=backfill), possibly from several database files. They are merged on (symbol, epoch). If the same (symbol, epoch) appears in two sources with the same quote it counts once. If the quotes differ, that tick is excluded from every test and the number of such ticks is reported (the check so far found 0 differences in 19 comparisons). Segments are formed on the merged series.
+
+```json GATE1-REGISTRATION-A2
+{
+  "amendment": 2,
+  "contiguous_max_gap_s": {"1HZ100V": 1, "R_100": 2},
+  "exploratory_max_gap_s": 60,
+  "min_segment_len": 10,
+  "uniformity_uses": "all_eligible_digits",
+  "serial_tests": ["parity_runs", "autocorrelation_portmanteau_10", "pair_independence_chi2"],
+  "serial_tests_use": "contiguous_segments_only",
+  "source_conflict": "exclude_tick_and_report"
+}
+```

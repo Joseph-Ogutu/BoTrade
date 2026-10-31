@@ -33,7 +33,7 @@ def test_original_v1_text_is_preserved_unedited():
 
 def test_registration_block_is_single_and_consistent_with_the_text():
     reg = load_registration()
-    assert reg["amendment"] == 1
+    assert reg["amendments"] == [1, 2]
     conf, expl, tests = reg["confirmatory_symbols"], reg["exploratory_symbols"], reg["tests"]
     assert conf == ["1HZ100V", "R_100"]
     assert len(tests) == 4 and len(set(tests)) == 4
@@ -104,3 +104,37 @@ def test_holdout_start_is_the_first_commit_with_the_marker(tmp_path):
     commit("later edit", "2026-11-02T00:00:00+00:00")
     expected = int(dt.datetime(2026, 10, 31, 21, 0, 0, tzinfo=dt.timezone.utc).timestamp())
     assert holdout_start_epoch(tmp_path) == expected
+
+
+def test_amendment_1_text_is_preserved_unedited_by_amendment_2():
+    a1 = "f0d24e5"
+    try:
+        before = _git("show", f"{a1}:docs/kill-criterion.md")
+    except subprocess.CalledProcessError:
+        pytest.skip("amendment 1 commit not available in this checkout")
+    current = (ROOT / "docs" / "kill-criterion.md").read_text()
+    assert current.startswith(before)          # append-only after Amendment 1
+    assert current.count("AMENDMENT-2-MARKER") == 1
+
+
+def test_amendment_2_registration_is_consistent_with_amendment_1():
+    reg = load_registration()
+    assert reg["contiguous_max_gap_s"] == reg["nominal_interval_s"]      # zero missing ticks allowed
+    assert reg["exploratory_max_gap_s"] == reg["exploratory_segment_break_s"] == 60
+    assert reg["min_segment_len"] == 10
+    assert reg["uniformity_uses"] == "all_eligible_digits"
+    assert set(reg["serial_tests"]) == set(reg["tests"]) - {"uniformity_chi2"}
+    assert reg["source_conflict"] == "exclude_tick_and_report"
+
+
+def test_amendment_2_marker_commit_is_after_amendment_1_and_does_not_move_h0():
+    h0 = holdout_start_epoch(ROOT)
+    assert h0 == 1793486149
+    a2 = holdout_start_epoch(ROOT, marker="AMENDMENT-2-MARKER") if _has_commit_with("AMENDMENT-2-MARKER") else None
+    if a2 is not None:
+        assert a2 >= h0
+
+
+def _has_commit_with(marker):
+    out = _git("log", "--format=%h", f"-S{marker}", "--", "docs/kill-criterion.md")
+    return bool(out.strip())
