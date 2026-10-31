@@ -117,6 +117,9 @@ class RateLimiter:
                 await self._sleep(wait)
 
     def penalize(self, msg_type_or_group: str, seconds: float) -> None:
-        """Block a group for `seconds`, e.g. after the server rejected a call as rate-limited."""
+        """Block a group for `seconds`, e.g. after the server rejected a call as rate-limited.
+
+        UNVERIFIED-ERR: the rate-limit rejection code and shape are not known; no caller detects them yet.
+        """
         group = msg_type_or_group if msg_type_or_group in self._limits else self._resolve(msg_type_or_group)
         self._blocked_until[group] = max(self._blocked_until.get(group, 0.0), self._clock() + seconds)

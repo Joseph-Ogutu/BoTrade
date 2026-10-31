@@ -30,6 +30,7 @@ class Fault:
     action: str  # drop_before | drop_after | delay | duplicate | error | hold
     skip: int = 0
     seconds: float = 0.0
+    # UNVERIFIED-ERR: "FakeError" and every other Fake* code below is INVENTED for tests, not a real Deriv code.
     code: str = "FakeError"
     message: str = "injected failure"
     _seen: int = field(default=0, repr=False)
@@ -63,6 +64,7 @@ class FakeDeriv:
         self.bought: set[str] = set()
         self.contracts: dict[int, Contract] = {}
         self.connections = 0
+        # UNVERIFIED-ERR: that Deriv rejects bad auth at the WebSocket handshake with an HTTP status (assumed 401).
         self.reject_handshake_status: int | None = None
         self.drop_ticks_after: int | None = None
         self.closed_symbols: set[str] = set()
@@ -163,7 +165,8 @@ class FakeDeriv:
                 subscription={"id": _sid()})]
         if msg_type == "ticks":
             if req["ticks"] in self.closed_symbols:
-                # Shape OBSERVED live on 2026-11-01 (code MarketIsClosed, msg_type ticks). Message text paraphrased.
+                # OBSERVED-ERR: code MarketIsClosed, msg_type ticks, seen live on the public endpoint 2026-11-01.
+                # Message text is paraphrased.
                 return [self._envelope(req, "ticks", error={
                     "code": "MarketIsClosed", "message": "This market is presently closed."})]
             tasks.append(asyncio.create_task(self._stream_ticks(ws, req)))
@@ -179,6 +182,7 @@ class FakeDeriv:
             pid = req["buy"]
             prop = self.proposals.get(pid)
             if prop is None or pid in self.bought:
+                # UNVERIFIED-ERR: real code and shape for buying an unknown or already used proposal id.
                 return [self._envelope(req, "buy", error={
                     "code": "FakeInvalidProposal", "message": "unknown or already used proposal"})]
             self.bought.add(pid)
@@ -207,6 +211,7 @@ class FakeDeriv:
             return []
         if msg_type == "forget":
             return [self._envelope(req, "forget", forget=1)]
+        # UNVERIFIED-ERR: invented code for an unsupported request.
         return [self._envelope(req, msg_type, error={"code": "FakeUnsupported", "message": "not implemented"})]
 
     def _settle(self, cid: int) -> None:
@@ -240,6 +245,7 @@ class FakeDeriv:
             while True:
                 c = self.contracts.get(cid)
                 if c is None:
+                    # UNVERIFIED-ERR: real code and shape for an unknown contract_id.
                     await ws.send(json.dumps(self._envelope(req, "proposal_open_contract", error={
                         "code": "FakeContractNotFound", "message": "no such contract"})))
                     return

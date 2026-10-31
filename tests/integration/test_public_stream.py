@@ -46,6 +46,7 @@ async def test_reconnects_and_resubscribes_after_stream_drop():
 
 async def test_retries_after_handshake_rejection():
     async with FakeDeriv() as fake:
+        # UNVERIFIED-ERR: handshake rejection as HTTP 401 is an assumption (docs describe 401 for REST).
         fake.reject_handshake_status = 401
         stats = StreamStats()
 
@@ -171,6 +172,7 @@ async def test_other_subscription_errors_still_reconnect():
     async with FakeDeriv() as fake:
         from tests.fakes.fake_deriv import Fault
 
+        # UNVERIFIED-ERR: "SomethingElse" is a placeholder for any unrecognised subscription error code.
         fake.inject(Fault("ticks", "error", code="SomethingElse"))
         stats = StreamStats()
         got = await take(fake.url, ["1HZ100V"], 3, stats=stats)

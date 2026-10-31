@@ -165,10 +165,11 @@ def test_parse_portfolio_and_profit_table():
 
 def test_error_responses_raise_with_redacted_context():
     raw = {"msg_type": "buy", "req_id": 9, "echo_req": {"buy": "pid", "price": 1},
+           # UNVERIFIED-ERR: "InsufficientBalance" is the legacy API's code (old bot); never observed on the new API.
            "error": {"code": "InsufficientBalance", "message": "Your account balance is insufficient."}}
     with pytest.raises(DerivApiError) as ei:
         m.parse_message(raw)
-    assert ei.value.code == "InsufficientBalance"
+    assert ei.value.code == "InsufficientBalance"  # UNVERIFIED-ERR: legacy code, see above
     assert ei.value.req_id == 9
     assert ei.value.msg_type == "buy"
 

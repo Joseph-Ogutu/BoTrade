@@ -42,6 +42,7 @@ Phase checklist (tick only when acceptance criteria in HANDBOOK section 13 are m
 
 ## 3. Done so far (append, newest first)
 
+- 2026-11-01: step 4 tagged every error code literal and the error-shape assumptions in src/ and tests/ with OBSERVED-ERR or UNVERIFIED-ERR; listed in section 9b; added tests/unit/test_unverified_tags.py which fails on an untagged code literal or one missing from STATE.md. Evidence: this commit
 - 2026-11-01: step 3 docs/runbook.md for the Oracle VM (non-root user, SSH-only inbound from owner IP /32, docker compose up, health checks and troubleshooting table, daily off-host backup via systemd timer + rclone, restore drill procedure with real dev-machine output, verification log, known gaps). scripts/backup_daily.sh and deploy/ unit files added. Tested on the dev machine only: the backup/verify/restore tooling and an actual restore comparing identical to live. NOT tested: anything on an Oracle VM, rclone (not installed here), the systemd timer firing, the off-host copy
 - 2026-11-01: step 2 collector Docker setup: Dockerfile.collector (non-root, read-only rootfs, no env secrets), docker-compose.yml (collector only, ./data volume, restart unless-stopped, json-file log rotation, healthcheck that fails if the heartbeat file is stale or an always-open symbol has not ticked in 120s), config/collector.json (1HZ100V, R_100, cryBTCUSD, cryETHUSD always open; frxEURUSD, frxGBPUSD, frxUSDJPY, frxXAUUSD closed-market tolerant), heartbeat log line, silence watchdog (exit 1 after 600s), backup/restore tooling with tests. Built and run live on this machine: healthy, graceful stop in 3s, data persisted across restart, health failure path verified. Found and fixed a reconnect storm caused by subscribing to closed markets (MarketIsClosed). 113 tests pass. NOT verified: the image has not run on the Oracle VM; the base image is not pinned by digest; pip installs are version-pinned but not hash-pinned
 - 2026-11-01: step 1 public-endpoint probes (active_symbols 89 symbols, contracts_for, proposal quotes without auth, ticks_history limits, observed error shapes), evidence: docs/api-notes.md "Public endpoint probes", docs/instruments.md, docs/evidence/. Phase 0 items 1, 2, 5 answered for the PUBLIC view only; DEMO confirmation still needed
@@ -108,6 +109,38 @@ Resolved: HANDBOOK is now at docs/HANDBOOK.md. The new API uses REST OTP plus We
 - Legacy endpoint deprecation date
 - Licences of Freqtrade, LEAN, Hummingbot
 - Whether automated trading is permitted for the owner's account type
+
+## 9b. Assumed error codes and error shapes (UNVERIFIED unless marked OBSERVED)
+
+Source of truth for tags: comments `OBSERVED-ERR:` and `UNVERIFIED-ERR:` in src/ and tests/. tests/unit/test_unverified_tags.py fails if a code literal is untagged or missing from this list. Update both together.
+
+OBSERVED live on the PUBLIC endpoint, 2026-11-01 (docs/api-notes.md "Error objects actually observed"; raw in docs/evidence/public_probe_batch.json). Still UNVERIFIED on the authenticated demo endpoint:
+
+| Code or shape | Where used | Status |
+|---|---|---|
+| Error object shape `{"error": {"code", "message", "details"?}, "msg_type", "req_id", "echo_req"}` | src/derivbot/deriv/errors.py, messages.py | OBSERVED for proposal, ticks, balance, portfolio (public). UNVERIFIED for buy, sell, proposal_open_contract, any authenticated path |
+| `MarketIsClosed` (msg_type `ticks`) | src/derivbot/deriv/public_stream.py, fake server | OBSERVED (public). UNVERIFIED on demo |
+| `ContractBuyValidationError`, `InvalidInputAsset`, `AuthorizationRequired`, `InputValidationFailed` | not in code; recorded in api-notes only | OBSERVED (public), no code depends on them yet |
+
+ASSUMED, never observed (UNVERIFIED):
+
+| Code or shape | Where used | Note |
+|---|---|---|
+| `InsufficientBalance` | tests/unit/test_models.py | The old bot's string from the legacy API. Real code on the new API unknown |
+| Rate-limit rejection code and shape | src/derivbot/deriv/ratelimit.py (penalize docstring), tests use `FakeRateLimit` | Unknown. No code detects a server rate-limit rejection yet |
+| Error on buying an unknown or already used proposal id | fake server (`FakeInvalidProposal`) | Real code and shape unknown. The docs say a proposal id cannot be bought twice but give no error |
+| Error for an unknown contract_id | fake server (`FakeContractNotFound`) | Unknown |
+| Error for an unsupported request | fake server (`FakeUnsupported`) | Invented |
+| `FakeError` (default injected code), `FakeRateLimit`, `SomethingElse` | tests | Invented placeholders, never claims about Deriv |
+| Handshake rejection as HTTP 401 | fake server `reject_handshake_status`, tests | The docs describe 401 for REST. Behaviour of the WebSocket upgrade with a bad or reused OTP is unknown |
+| OTP expired or reused error | none yet | Unknown (api-notes item 6) |
+| Errors for market closed on `buy`, for stake out of range on `buy`, for price moved | none yet | Unknown. Proposal-time equivalents were observed on the public endpoint only |
+| Server does not enforce the schemas' `additionalProperties: false` | api-notes | OBSERVED on `ping` only (extra field accepted) |
+
+Other assumed response values (not errors, same rule):
+
+- `proposal_open_contract.status` values `won` / `lost` at expiry (fake server and one test use them). The schema only says `sold` for early sale. UNVERIFIED.
+- `OpenContract.is_settled` treats `is_sold == 1` or `is_expired == 1` as settled. Which flag Deriv sets for tick contracts is UNVERIFIED.
 
 ## 10. How to resume (fresh session checklist)
 

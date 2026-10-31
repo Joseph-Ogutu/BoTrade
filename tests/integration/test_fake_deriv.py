@@ -93,13 +93,14 @@ async def test_drop_before_processing_places_nothing():
 
 async def test_injected_error_and_skip_counter():
     async with FakeDeriv() as fake:
+        # UNVERIFIED-ERR: "FakeRateLimit" is invented; the real rate-limit rejection code is unknown.
         fake.inject(Fault("proposal", "error", skip=1, code="FakeRateLimit", message="slow down"))
         async with websockets.connect(fake.url) as ws:
             first = await proposal(ws, req_id=1)
             second = await proposal(ws, req_id=2)
             third = await proposal(ws, req_id=3)
             assert "proposal" in first and "proposal" in third
-            assert second["error"]["code"] == "FakeRateLimit" and second["req_id"] == 2
+            assert second["error"]["code"] == "FakeRateLimit" and second["req_id"] == 2  # UNVERIFIED-ERR: invented
 
 
 async def test_duplicate_reply_is_sent_twice():
@@ -148,6 +149,7 @@ async def test_tick_stream_drops_after_n_ticks():
 
 async def test_handshake_rejection_returns_http_status():
     async with FakeDeriv() as fake:
+        # UNVERIFIED-ERR: handshake rejection as HTTP 401 is an assumption (docs describe 401 for REST).
         fake.reject_handshake_status = 401
         with pytest.raises(websockets.InvalidStatusCode) as ei:
             async with websockets.connect(fake.url):

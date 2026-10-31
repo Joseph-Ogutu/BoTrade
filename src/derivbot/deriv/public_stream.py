@@ -98,6 +98,8 @@ async def stream_ticks(
                         msg = parse_message(json.loads(raw))
                     except DerivApiError as exc:
                         sym = req_symbols.get(exc.req_id) if exc.req_id is not None else None
+                        # OBSERVED-ERR: MarketIsClosed with msg_type "ticks" on the public endpoint, 2026-11-01.
+                        # UNVERIFIED-ERR: whether the demo endpoint uses the same code for closed markets.
                         if exc.code == "MarketIsClosed" and exc.msg_type == "ticks" and sym:
                             if sym not in stats.closed_symbols:
                                 log.info("%s: market closed, retrying every %.0fs", sym, resubscribe_closed_after)

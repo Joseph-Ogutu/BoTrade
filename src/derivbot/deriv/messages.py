@@ -226,6 +226,7 @@ Message = TickMsg | BalanceMsg | ProposalMsg | BuyMsg | OpenContractMsg | Portfo
 
 def parse_message(raw: dict[str, Any]) -> Message:
     """Parse one inbound message. Raises DerivApiError if it carries an `error`."""
+    # UNVERIFIED-ERR: errors are assumed to arrive as a top-level "error" key (observed on the public endpoint only).
     if "error" in raw:
         raise DerivApiError.from_message(raw)
     msg_type = raw.get("msg_type")

@@ -18,6 +18,9 @@ class DerivApiError(Exception):
 
     @classmethod
     def from_message(cls, raw: dict[str, Any]) -> "DerivApiError":
+        # OBSERVED-ERR: shape {"error": {"code", "message", "details"?}, "msg_type", "req_id", "echo_req"} seen live on
+        #   the PUBLIC endpoint 2026-11-01 for proposal, ticks, balance and portfolio failures.
+        # UNVERIFIED-ERR: the same shape on buy, sell, proposal_open_contract and any authenticated (demo) path.
         err = raw.get("error") or {}
         if not isinstance(err, dict):
             err = {"message": str(err)}
