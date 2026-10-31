@@ -24,6 +24,8 @@ Phase checklist (tick only when acceptance criteria in HANDBOOK section 13 are m
 - [ ] Phase 3: Deriv adapter, smoke test passes on DEMO, fake Deriv server tests pass
 - [ ] Phase 4: collector running, gap report, candle rebuild test
 - [ ] Gate 1 prep: docs/kill-criterion.md committed BEFORE any strategy test, power calculation done
+  - done: kill-criterion.md committed, planning power table (n_min about 3,800 at K=1 and about 8,250 at K=20 for delta 0.02)
+  - not done: binding n_min needs real r from proposal (api-notes item 2); holdout hash in docs/gates.md; control experiment harness
 - [ ] Gate 1: edge test on locked holdout, control experiment passed
 - [ ] Phase 5 and 6: strategies and backtests
 - [ ] Phase 7: risk engine, kill switch, state machine, reconciler
@@ -35,6 +37,7 @@ Phase checklist (tick only when acceptance criteria in HANDBOOK section 13 are m
 
 ## 3. Done so far (append, newest first)
 
+- 2026-11-01: Phase 0 docs-based answers recorded in docs/api-notes.md (items 3, 6, 8 answered; 4, 5, 7 partial; 9, 10 not found); docs/kill-criterion.md pre-registered; derivbot.stats.edge (Wilson, exact binomial, power, Holm) with 14 passing unit tests; docs/power-table.md, evidence: commit after 19af90c
 - 2026-11-01: HANDBOOK saved as docs/HANDBOOK.md, .env.example aligned to it (DERIV_PAT_DEMO etc.), api-notes.md restructured to the ten Phase 0 items, evidence: commit following c399a69
 - 2026-11-01: new repo scaffolded (.gitignore, CLAUDE.md, STATE.md, Makefile, .env.example, docs/api-notes.md skeleton), evidence: first commit in this repo
 - 2026-11-01: read-only audit of the old bot, evidence: docs/existing-bot-audit.md

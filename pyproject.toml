@@ -1,0 +1,15 @@
+[project]
+name = "derivbot"
+version = "0.0.1"
+description = "Deriv demo trading research and execution bot"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
