@@ -101,3 +101,24 @@ def record_balance(conn: Connection, *, mode: str, account_id: str, balance: Dec
 def intents_in_state(conn: Connection, state: State):
     return conn.execute(text("SELECT id, symbol, contract_type, stake, account_id, created_at FROM order_intents "
                              "WHERE state = :s ORDER BY created_at"), {"s": state.value}).all()
+
+
+def record_reconciliation(conn: Connection, *, trigger: str, local_open: int, remote_open: int, status: str,
+                          discrepancies: list[dict[str, Any]]) -> int:
+    return int(conn.execute(
+        text("INSERT INTO reconciliation_runs (trigger, local_open, remote_open, status, discrepancies) "
+             "VALUES (:t, :l, :r, :s, CAST(:d AS jsonb)) RETURNING id"),
+        {"t": trigger, "l": local_open, "r": remote_open, "s": status,
+         "d": json.dumps(redact_obj(discrepancies), default=str)}).scalar_one())
+
+
+def local_orders(conn: Connection):
+    return conn.execute(text("SELECT o.intent_id, o.deriv_contract_id, o.state, o.buy_price, o.payout, o.profit "
+                             "FROM orders o WHERE o.deriv_contract_id IS NOT NULL")).all()
+
+
+def stuck_buy_sent(conn: Connection, older_than_s: float):
+    return conn.execute(text(
+        "SELECT i.id FROM order_intents i WHERE i.state = 'BUY_SENT' AND (SELECT max(ts) FROM order_events e "
+        "WHERE e.intent_id = i.id AND e.to_state = 'BUY_SENT') < now() - make_interval(secs => :s)"),
+        {"s": older_than_s}).all()

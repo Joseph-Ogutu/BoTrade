@@ -91,6 +91,7 @@ class Executor:
         self.d = deps
         self._tasks: set[asyncio.Task] = set()
         self._lock = IntentLock(deps.kv)
+        self.inflight: set[str] = set()      # intents whose submit() is running in THIS process
 
     # ------------------------------------------------------------------ small helpers
     async def _db(self, fn: Callable[..., Any], *args: Any, **kw: Any) -> Any:
@@ -168,6 +169,15 @@ class Executor:
                                        stake=pre.stake or PLACEHOLDER_STAKE, duration=duration, duration_unit=unit)
         except repo.DuplicateIntent:
             return ExecutionResult(None, None, "duplicate: idempotency key already stored")
+        self.inflight.add(intent_id)
+        try:
+            return await self._after_create(req, intent_id, info, balance, api_min, duration, unit, wait, settle_timeout)
+        finally:
+            self.inflight.discard(intent_id)
+
+    async def _after_create(self, req: IntentRequest, intent_id: str, info: ConnInfo, balance: Decimal | None,
+                            api_min: Decimal | None, duration: int, unit: str, wait: bool, settle_timeout: float) -> ExecutionResult:
+        cfg = self.d.risk.cfg
         ctx = await self._build_context(req, intent_id, info, balance, api_min)
         decision = self.d.risk.evaluate(ctx)
         await self._db(record_decision, intent_id, decision, self.d.config_version_id)
