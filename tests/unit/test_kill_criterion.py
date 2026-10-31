@@ -33,7 +33,7 @@ def test_original_v1_text_is_preserved_unedited():
 
 def test_registration_block_is_single_and_consistent_with_the_text():
     reg = load_registration()
-    assert reg["amendments"] == [1, 2]
+    assert reg["amendments"] == [1, 2, 3]
     conf, expl, tests = reg["confirmatory_symbols"], reg["exploratory_symbols"], reg["tests"]
     assert conf == ["1HZ100V", "R_100"]
     assert len(tests) == 4 and len(set(tests)) == 4
@@ -138,3 +138,24 @@ def test_amendment_2_marker_commit_is_after_amendment_1_and_does_not_move_h0():
 def _has_commit_with(marker):
     out = _git("log", "--format=%h", f"-S{marker}", "--", "docs/kill-criterion.md")
     return bool(out.strip())
+
+
+def test_amendment_3_is_append_only_after_amendment_2():
+    a2 = "eeca178"
+    try:
+        before = _git("show", f"{a2}:docs/kill-criterion.md")
+    except subprocess.CalledProcessError:
+        pytest.skip("amendment 2 commit not available in this checkout")
+    current = (ROOT / "docs" / "kill-criterion.md").read_text()
+    assert current.startswith(before)
+    assert current.count("AMENDMENT-3-MARKER") == 1
+
+
+def test_amendment_3_registration_is_consistent():
+    reg = load_registration()
+    assert reg["shuffle_checked_tests"] == reg["serial_tests"]
+    assert "uniformity_chi2" not in reg["shuffle_checked_tests"]
+    assert reg["validity_copies"] == reg["shuffle_controls_per_symbol"] == 200
+    lo, hi = reg["validity_band"]
+    se = (0.05 * 0.95 / 200) ** 0.5
+    assert abs(lo - round(0.05 - 3 * se, 4)) < 1e-9 and abs(hi - round(0.05 + 3 * se, 4)) < 1e-9

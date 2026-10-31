@@ -250,3 +250,46 @@ Ticks may come from the streaming collector (source=stream) and from backfill (s
   "source_conflict": "exclude_tick_and_report"
 }
 ```
+
+AMENDMENT-3-MARKER: kill-criterion amendment 3
+
+## Amendment 3: two defects found while writing the harness
+
+Status: made BEFORE the harness is frozen and BEFORE any digit-level statistic has been computed on any real tick. It changes neither H0, the symbols, the four tests, alpha, Holm, the family sizes, the minimum samples nor the run date. Amendments 1 and 2 above are unedited.
+
+### A3.1 What had been observed since Amendment 2
+
+All times UTC. Amendment 2 was committed 2026-10-31T22:45:03Z.
+
+- Coverage and uptime reports (epochs only, SQL that does not select quote values): eligible ticks after H0 were 447 for 1HZ100V and 230 for R_100 at 22:46Z, all from backfill, uptime 1.0000, one segment each; the pre-H0 local collector file had uptime 0.9574 for both symbols with two gaps each.
+- A scan of the repository history for secrets and personal data (no digit data involved).
+- A trailing-zero check on a SYNTHETIC tick message written by the author (quote 1310.70, pip_size 2), not on any real tick. It showed the defect in A3.3. The stored backfill database was migrated to add a pip_size column; only counts of rows by source and pip_size were read.
+- No digit frequency, parity count, run count, autocorrelation, digit pair or plot has been computed on any real tick. The statistical functions of the harness are still being written and have only been run on simulated data and unit-test inputs.
+
+### A3.2 Defect 1: the shuffle validity rule of A1.7 cannot work for uniformity
+
+A1.7 says that among 200 shuffled copies of each confirmatory sequence, every one of the 4 tests must reject at a rate inside [0.0038, 0.0962]. Shuffling digits within segments keeps the digit counts, so `uniformity_chi2` returns the same statistic and the same p-value for every shuffled copy. Its rejection rate is therefore either 0 or 1, never a sample from the null. As written, the rule would declare every run INVALID.
+
+Correction, replacing the shuffled-copy check for that one test only:
+
+- For the three serial tests (`parity_runs`, `autocorrelation_portmanteau_10`, `pair_independence_chi2`) nothing changes: 200 copies of the real sequence with digits shuffled within segments, rejection rate per test within 0.05 +/- 3 x sqrt(0.05 x 0.95 / 200), that is [0.0038, 0.0962].
+- For `uniformity_chi2`, the check uses 200 SIMULATED series of independent uniform digits with exactly the same number of digits as the real eligible series of that symbol (the real digits are not used), rejection rate within the same band.
+
+The number of validity checks stays 8 (4 tests x 2 confirmatory symbols), so the chance of a false INVALID for a correct harness stays about 2%. Nothing else in A1.7 changes.
+
+### A3.3 Defect 2: quotes must carry exactly pip_size decimals before a digit is read
+
+The digit rule of A1.4 is the last character of the quote formatted with exactly pip_size decimals. JSON numbers drop trailing zeros, so a quote of 1310.70 arrives as 1310.7. The collector stored the parsed value, so the last character of the stored text would be 7, not 0, for roughly one tick in ten. This was found by a test on 2026-10-31 and fixed in the commit titled "fix(store): restore trailing zeros to pip_size decimals and record pip_size per tick" (22:51Z). From that commit the store pads quotes with zeros to pip_size decimals (never rounds) and records pip_size per tick. Backfill rows were already stored with exactly pip_size decimals and are unaffected. No streamed tick after H0 had been stored by a collector before the fix, so no holdout tick is affected. The earlier local collector file is before H0 and excluded.
+
+Rule added to A1.4: a tick is valid for digit analysis only if its stored quote has exactly pip_size decimals and its pip_size is recorded. Any other tick is excluded from every test and the number excluded, per symbol and source, is reported. A deployment must run code that includes the fix; a collector built from an earlier commit would write unusable digits.
+
+```json GATE1-REGISTRATION-A3
+{
+  "amendment": 3,
+  "shuffle_checked_tests": ["parity_runs", "autocorrelation_portmanteau_10", "pair_independence_chi2"],
+  "uniformity_validity": "simulated_iid_uniform_same_length",
+  "validity_copies": 200,
+  "validity_band": [0.0038, 0.0962],
+  "tick_validity": "quote_decimals_equal_pip_size_else_exclude_and_report"
+}
+```
