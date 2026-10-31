@@ -27,7 +27,8 @@ Phase checklist (tick only when acceptance criteria in HANDBOOK section 13 are m
   - not done: buy/portfolio reconcile logic against the fake (belongs with the executor, Phase 7 and 8)
 - [ ] Phase 4: collector running, gap report, candle rebuild test
   - done: SQLite tick store, gap detection, collector, scripts/collect_ticks.py, 2 short live runs on the public endpoint (not a continuous collection)
-  - not done: Postgres tables and Alembic, backfill via ticks_history (limits UNVERIFIED), candle builder, a long-running collector under Docker, N days of data
+  - done since: Docker collector (compose, healthcheck, heartbeat, watchdog), backup/restore tooling, runbook
+  - not done: Postgres tables and Alembic (not started, by instruction), backfill via ticks_history (public view: 1000 per call, 12 to 24 h retention, silent fall back to latest ticks beyond that, see api-notes), candle builder, the collector running on the Oracle VM, N days of data
 - [ ] Gate 1 prep: docs/kill-criterion.md committed BEFORE any strategy test, power calculation done
   - done: kill-criterion.md committed, planning power table (n_min about 3,800 at K=1 and about 8,250 at K=20 for delta 0.02)
   - not done: binding n_min needs real r from proposal (api-notes item 2); holdout hash in docs/gates.md; control experiment harness
@@ -58,6 +59,8 @@ Phase checklist (tick only when acceptance criteria in HANDBOOK section 13 are m
 
 ## 5. Next actions (ordered)
 
+00. Owner: decide the open items for the runbook (section 1 of docs/runbook.md: your SSH IP, off-host backup target, Oracle shape), then run the VM steps and fill the verification log (runbook section 10).
+00b. Owner: decide which non-synthetic symbols to keep collecting. config/collector.json currently has cryBTCUSD, cryETHUSD (always open) and frxEURUSD, frxGBPUSD, frxUSDJPY, frxXAUUSD. Non-synthetics only offer 15 minute or longer fixed-payout contracts or multipliers (api-notes), so they test a different hypothesis than 5-tick digit contracts.
 0. Owner: add DERIV_APP_ID_DEMO (and the demo PAT and account ID) to .env. Agents do not open token files; once .env is populated, the held authenticated work above can start.
 1. Owner: follow HANDBOOK 12 Step A. Register a NEW application of type PAT at developers.deriv.com (sign up with a different email if it redirects to a trading account), create a demo-scope PAT (`trade` only), and put App ID, PAT and demo account ID in .env (git-ignored, chmod 600). If "Ogutu Bot API TOKEN pat.txt" is that PAT, move it out of the old repo root first; it has not been opened by any agent. Never paste the PAT into chat.
 2. Owner: archive the old bot (do not commit it; its token file is not git-ignored).
