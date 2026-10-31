@@ -1,0 +1,102 @@
+"""Every branch of every pre-trade rule. Run with branch coverage; CI requires 100 percent on risk/rules.py and stake.py."""
+
+from decimal import Decimal as D
+
+import pytest
+
+from derivbot.risk import rules as r
+from derivbot.risk.stake import StakeResult
+
+
+def test_kill_switch():
+    assert r.kill_switch_clear(False).passed and not r.kill_switch_clear(True).passed
+
+
+def test_mode_and_account_every_branch():
+    ok = r.mode_and_account_consistent("demo", "demo", "demo", True)
+    assert ok.passed
+    bad = r.mode_and_account_consistent("real", "demo", "demo", True)
+    assert not bad.passed and "unreachable" in bad.detail
+    assert not r.mode_and_account_consistent("demo", "real", "demo", True).passed
+    assert not r.mode_and_account_consistent("demo", "demo", "real", True).passed
+    assert not r.mode_and_account_consistent("demo", "demo", None, True).passed
+    assert not r.mode_and_account_consistent("demo", "demo", "demo", False).passed
+    unknown = r.mode_and_account_consistent("demo", "demo", "demo", None)
+    assert not unknown.passed and "unknown" in unknown.observed
+
+
+def test_connection_and_reconciliation_every_branch():
+    assert r.connection_and_reconciliation_healthy(True, 10.0, 120).passed
+    assert r.connection_and_reconciliation_healthy(True, 120.0, 120).passed          # boundary is allowed
+    assert not r.connection_and_reconciliation_healthy(False, 10.0, 120).passed
+    never = r.connection_and_reconciliation_healthy(True, None, 120)
+    assert not never.passed and never.detail == "never reconciled"
+    old = r.connection_and_reconciliation_healthy(True, 120.1, 120)
+    assert not old.passed and old.detail == "reconciliation too old"
+
+
+def test_market_data_fresh_every_branch():
+    assert r.market_data_fresh(3.0, 10).passed and r.market_data_fresh(10.0, 10).passed
+    assert not r.market_data_fresh(10.5, 10).passed
+    none = r.market_data_fresh(None, 10)
+    assert not none.passed and none.detail == "no market data"
+
+
+def test_open_positions_and_counters_boundaries():
+    assert r.open_positions_within_limit(0, 1).passed and not r.open_positions_within_limit(1, 1).passed
+    assert r.consecutive_losses_within_limit(3, 4).passed and not r.consecutive_losses_within_limit(4, 4).passed
+    assert r.trade_rate_within_limit(29, 30).passed and not r.trade_rate_within_limit(30, 30).passed
+
+
+def test_daily_loss_every_branch():
+    assert r.daily_loss_within_limit(D("-19.99"), None, D("20"), None).passed
+    a = r.daily_loss_within_limit(D("-20"), None, D("20"), None)
+    assert not a.passed and "absolute" in a.detail
+    assert r.daily_loss_within_limit(D("50"), None, D("20"), None).passed
+    assert r.daily_loss_within_limit(D("0"), None, D("20"), None).passed
+    assert r.daily_loss_within_limit(D("-4.99"), D("100"), None, D("0.05")).passed
+    p = r.daily_loss_within_limit(D("-5"), D("100"), None, D("0.05"))
+    assert not p.passed and "percentage" in p.detail
+    for start in (None, D("0"), D("-1")):
+        u = r.daily_loss_within_limit(D("-1"), start, None, D("0.05"))
+        assert not u.passed and "unknown" in u.detail
+    assert not r.daily_loss_within_limit(D("-25"), D("1000"), D("20"), D("0.05")).passed
+    assert not r.daily_loss_within_limit(D("-6"), D("100"), D("20"), D("0.05")).passed
+    assert r.daily_loss_within_limit(D("-1"), D("100"), D("20"), D("0.05")).passed
+    assert r.daily_loss_within_limit(D("-1"), None, None, None).limit == "none configured"
+
+
+def test_stake_rule_both_branches():
+    ok = r.stake_within_bounds(StakeResult(D("1.00"), "ok", D("1.00"), D("0.35")))
+    assert ok.passed and ok.detail == ""
+    bad = r.stake_within_bounds(StakeResult(None, "below_min", D("0.20"), D("0.35")))
+    assert not bad.passed and bad.detail == "below_min"
+    unknown = r.stake_within_bounds(StakeResult(None, "balance_unknown"))
+    assert not unknown.passed and "unknown" in unknown.limit
+
+
+def test_duplicate_protection_every_branch():
+    assert r.duplicate_protection(False, False).passed
+    assert "already used" in r.duplicate_protection(True, False).detail
+    assert "in flight" in r.duplicate_protection(False, True).detail
+    assert not r.duplicate_protection(True, True).passed
+
+
+def test_proposal_rules_every_branch():
+    assert r.proposal_price_acceptable(D("1"), D("1.02"), D("0.02")).passed
+    assert not r.proposal_price_acceptable(D("1"), D("1.0201"), D("0.02")).passed
+    assert r.proposal_payout_acceptable(D("1"), D("1.95"), D("0.80")).passed
+    assert not r.proposal_payout_acceptable(D("1"), D("1.09"), D("0.80")).passed
+    zero = r.proposal_payout_acceptable(D("0"), D("1"), D("0.80"))
+    assert not zero.passed and "non-positive" in zero.detail
+
+
+def test_strategy_rule():
+    assert r.strategy_approved(True, "ema", "1").passed
+    n = r.strategy_approved(False, "ema", "2")
+    assert not n.passed and n.observed == "ema@2"
+
+
+def test_rule_result_serialises():
+    d = r.kill_switch_clear(True).as_dict()
+    assert d == {"name": "kill_switch_clear", "passed": False, "observed": "engaged", "limit": "clear", "detail": ""}
