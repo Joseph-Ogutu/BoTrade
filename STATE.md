@@ -4,7 +4,7 @@ Any agent starting a session reads this file FIRST, then CLAUDE.md, then the rel
 Update this file and commit after every completed task. If it is not in this file and in git, it did not happen.
 
 Last updated: 2026-11-01 (UTC) by: Claude Code session (repo scaffold)
-Git HEAD when updated: see `git log -1` (hash is recorded in the commit that follows the scaffold commit)
+Git HEAD when updated: c399a69 (scaffold commit)
 
 ## 1. Project in one paragraph
 
