@@ -5,7 +5,9 @@ Read STATE.md first, then this file, then the relevant part of docs/HANDBOOK.md 
 ## Non-negotiable rules
 
 1. Demo only. Real trading stays disabled. Code must refuse to trade unless the authorized account is a demo account (loginid check), and must fail closed if the account type cannot be determined.
-2. No secrets in git, logs, tests, docs, or chat. The API token is read at runtime from an environment variable or from a file path given by an environment variable, with the file kept outside this repo. Never print, echo, cat, or log a token or an OTP URL. Redact as [REDACTED].
+2. No secrets in git, logs, tests, docs, or chat. Credentials come from git-ignored `.env` (names in `.env.example`: DERIV_APP_ID_DEMO, DERIV_PAT_DEMO, DERIV_ACCOUNT_ID_DEMO). The OTP WebSocket URL is a secret too. Never print, echo, cat, or log a token or OTP URL, and never open `.env` or token files. Redact as [REDACTED].
+2a. Never set TRADING_MODE=real, ALLOW_REAL_TRADING=true, or create REAL_TRADING_APPROVED (HANDBOOK 11.4). Leave real credentials empty.
+2b. No LLM in the trading loop. Live decisions are deterministic code (HANDBOOK 15.1). Do not use the server-side Automation API for decisions.
 3. Every trade passes the risk engine before any buy message is sent. No code path may call buy without a recorded risk approval.
 4. No blind buy retries. After a buy timeout or disconnect, reconcile against the portfolio before any further trade. Use an idempotency key only if verified in docs/api-notes.md.
 5. No martingale, no stake increase after a loss, no loss-chasing.

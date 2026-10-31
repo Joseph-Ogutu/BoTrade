@@ -35,20 +35,22 @@ Phase checklist (tick only when acceptance criteria in HANDBOOK section 13 are m
 
 ## 3. Done so far (append, newest first)
 
+- 2026-11-01: HANDBOOK saved as docs/HANDBOOK.md, .env.example aligned to it (DERIV_PAT_DEMO etc.), api-notes.md restructured to the ten Phase 0 items, evidence: commit following c399a69
 - 2026-11-01: new repo scaffolded (.gitignore, CLAUDE.md, STATE.md, Makefile, .env.example, docs/api-notes.md skeleton), evidence: first commit in this repo
 - 2026-11-01: read-only audit of the old bot, evidence: docs/existing-bot-audit.md
 
 ## 4. In progress
 
-- Phase 0 API verification, branch: main, blocker: docs/HANDBOOK.md not supplied, so the ten items in section 3 are unknown
+- Phase 0 API verification, branch: main, blocker: needs the owner's NEW App ID (type PAT) and a demo PAT in .env; the old bot's legacy App ID does not work with the new API (HANDBOOK 2.1). Items 9 and 10 can be researched without credentials.
 
 ## 5. Next actions (ordered)
 
-1. Owner: supply docs/HANDBOOK.md (STATE.md and CLAUDE.md cite sections 3, 4 and 13).
-2. Owner: move the token file out of the old repo root to a path outside any repo (for example ~/.config/deriv-bot/token, chmod 600), then set DERIV_TOKEN_FILE. Confirm what kind of token the file holds (Deriv API token or a GitHub personal access token); it has not been opened.
-3. Owner: archive the old bot (do not commit it; its token file is not git-ignored).
-4. Complete docs/api-notes.md using official docs and one recorded demo authorize response (secrets redacted).
-5. Phase 3: write the fake Deriv server and adapter tests first, then the adapter, with a demo-account check that fails closed.
+1. Owner: follow HANDBOOK 12 Step A. Register a NEW application of type PAT at developers.deriv.com (sign up with a different email if it redirects to a trading account), create a demo-scope PAT (`trade` only), and put App ID, PAT and demo account ID in .env (git-ignored, chmod 600). If "Ogutu Bot API TOKEN pat.txt" is that PAT, move it out of the old repo root first; it has not been opened by any agent. Never paste the PAT into chat.
+2. Owner: archive the old bot (do not commit it; its token file is not git-ignored).
+3. Owner: answer the four questions in HANDBOOK 16 (section 7 below).
+4. Agent: complete docs/api-notes.md, ten items, with dated requests and redacted responses. Start with items 9 and 10 and the synthetics description (HANDBOOK 4.2), which need no credentials.
+5. Agent: write docs/kill-criterion.md and the power calculation BEFORE any strategy work (HANDBOOK 4.3).
+6. Phase 3: fake Deriv server and adapter tests first, then the adapter. Demo/real check must fail closed. Create .claude/skills per HANDBOOK 15.2 at the start of Phase 3.
 
 ## 6. Decisions made by the owner
 
@@ -66,8 +68,11 @@ Phase checklist (tick only when acceptance criteria in HANDBOOK section 13 are m
 2. Telegram chat ID(s)?
 3. Does the old bot still run on the VPS? Which account type does its token belong to?
 4. Does the VPS Postgres hold any real trade history from the old bot?
-5. Where is docs/HANDBOOK.md?
-6. Is the new API credential a legacy token (authorize message) or an OTP/REST credential?
+5. Who will independently review the work in Phase 10 (must not be the agent session that wrote the code)?
+6. Maximum total amount you could lose entirely if you ever go live ("none, demo only" is acceptable)?
+7. Is the credential in "Ogutu Bot API TOKEN pat.txt" a Deriv PAT for the new API, or something else?
+
+Resolved: HANDBOOK is now at docs/HANDBOOK.md. The new API uses REST OTP plus WebSocket (HANDBOOK 2.1 and 2.2), not the legacy authorize message.
 
 ## 8. Facts about the old bot (from the read-only audit, docs/existing-bot-audit.md)
 
