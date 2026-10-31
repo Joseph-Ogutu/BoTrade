@@ -56,6 +56,10 @@ def req_portfolio(req_id: int) -> dict[str, Any]:
     return {"portfolio": 1, "req_id": req_id}
 
 
+def req_profit_table(req_id: int, limit: int = 50) -> dict[str, Any]:
+    return {"profit_table": 1, "limit": limit, "sort": "DESC", "req_id": req_id}
+
+
 def req_forget(subscription_id: str, req_id: int) -> dict[str, Any]:
     if not _ID_RE.match(subscription_id or ""):
         raise ValueError("invalid subscription id")
@@ -161,6 +165,20 @@ class OpenContract(_Model):
         return self.is_sold == 1 or self.is_expired == 1
 
 
+class ProfitTransaction(_Model):
+    """A SETTLED contract from profit_table. Used to find contracts that settled before a portfolio query."""
+
+    contract_id: int | None = None
+    buy_price: Decimal
+    sell_price: Decimal | None = None
+    payout: Decimal | None = None
+    contract_type: str | None = None
+    underlying_symbol: str | None = None
+    purchase_time: int | None = None
+    sell_time: int | None = None
+    transaction_id: int | None = None
+
+
 class PortfolioContract(_Model):
     contract_id: int
     buy_price: Decimal | None = None
@@ -213,6 +231,11 @@ class PortfolioMsg(_Msg):
     contracts: list[PortfolioContract] = Field(default_factory=list)
 
 
+class ProfitTableMsg(_Msg):
+    msg_type: Literal["profit_table"] = "profit_table"
+    transactions: list[ProfitTransaction] = Field(default_factory=list)
+
+
 class PongMsg(_Msg):
     msg_type: Literal["ping"] = "ping"
 
@@ -221,7 +244,8 @@ class UnknownMsg(_Msg):
     raw: dict[str, Any] = Field(default_factory=dict)
 
 
-Message = TickMsg | BalanceMsg | ProposalMsg | BuyMsg | OpenContractMsg | PortfolioMsg | PongMsg | UnknownMsg
+Message = (TickMsg | BalanceMsg | ProposalMsg | BuyMsg | OpenContractMsg | PortfolioMsg | ProfitTableMsg | PongMsg
+           | UnknownMsg)
 
 
 def parse_message(raw: dict[str, Any]) -> Message:
@@ -244,6 +268,8 @@ def parse_message(raw: dict[str, Any]) -> Message:
         return OpenContractMsg(req_id=req_id, contract=raw["proposal_open_contract"], subscription_id=sub)
     if msg_type == "portfolio":
         return PortfolioMsg(req_id=req_id, contracts=(raw.get("portfolio") or {}).get("contracts", []))
+    if msg_type == "profit_table":
+        return ProfitTableMsg(req_id=req_id, transactions=(raw.get("profit_table") or {}).get("transactions", []))
     if msg_type == "ping":
         return PongMsg(req_id=req_id)
     return UnknownMsg(msg_type=str(msg_type), req_id=req_id, raw=raw)

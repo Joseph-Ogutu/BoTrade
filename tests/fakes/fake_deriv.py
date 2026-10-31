@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 import secrets
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -47,6 +48,8 @@ class Contract:
     opened_at: float
     settled: bool = False
     profit: float = 0.0
+    purchase_time: int = 0
+    sell_time: int = 0
 
 
 class FakeDeriv:
@@ -68,6 +71,10 @@ class FakeDeriv:
         self.reject_handshake_status: int | None = None
         self.drop_ticks_after: int | None = None
         self.closed_symbols: set[str] = set()
+        self.proposal_markup = 0.0      # ask_price = amount * (1 + markup): simulates a price that moved
+        self.buy_messages = []          # proposal ids of every buy message that arrived, before any fault
+        self.buys_received = 0          # buy requests that reached the server, whatever happened to the reply
+        self.settle_profit_missing = False  # settled poc messages that omit profit and sell_price (UNVERIFIED shapes)
         # ticks_history emulation. Behaviour copied from what was OBSERVED on the public endpoint (2026-10-31):
         # count clamps to 1000; an `end` older than the retention window silently returns the LATEST ticks.
         self.history_interval = {"1HZ100V": 1, "R_100": 2}
@@ -78,6 +85,7 @@ class FakeDeriv:
         self._next_contract = 1000
         self._epoch = 1_700_000_000
         self._held: list[tuple[Any, str]] = []
+        self._clients: set = set()
 
     # ------------------------------------------------------------ lifecycle
     async def start(self) -> "FakeDeriv":
@@ -118,13 +126,21 @@ class FakeDeriv:
                 f._seen += 1
         return None
 
+    async def drop_all(self) -> None:
+        """Close every open client connection from the server side (a network drop)."""
+        for ws in list(self._clients):
+            await ws.close()
+
     async def _handler(self, ws) -> None:
         self.connections += 1
+        self._clients.add(ws)
         tasks: list[asyncio.Task] = []
         try:
             async for raw in ws:
                 req = json.loads(raw)
                 self.received.append(req)
+                if "buy" in req:
+                    self.buy_messages.append(req["buy"])
                 msg_type = next((k for k in _TYPES if k in req), "unknown")
                 fault = self._take_fault(msg_type)
                 if fault and fault.action == "drop_before":
@@ -140,6 +156,8 @@ class FakeDeriv:
                 if fault and fault.action == "drop_after":
                     await ws.close()
                     return
+                if fault and fault.action == "swallow":
+                    continue          # processed, but the reply is never sent and the connection stays open
                 if fault and fault.action == "hold":
                     self._held.extend((ws, json.dumps(r)) for r in replies)
                     continue
@@ -153,6 +171,7 @@ class FakeDeriv:
         except websockets.ConnectionClosed:
             pass
         finally:
+            self._clients.discard(ws)
             for t in tasks:
                 t.cancel()
 
@@ -183,12 +202,14 @@ class FakeDeriv:
             return []
         if msg_type == "proposal":
             pid, amount = _sid(), float(req.get("amount", 1))
-            self.proposals[pid] = {"amount": amount, "req": req}
+            ask = round(amount * (1 + self.proposal_markup), 2)
+            self.proposals[pid] = {"amount": amount, "ask": ask, "req": req}
             return [self._envelope(req, "proposal", proposal={
-                "id": pid, "ask_price": amount, "payout": round(amount * (1 + self.r), 2),
+                "id": pid, "ask_price": ask, "payout": round(amount * (1 + self.r), 2),
                 "spot": 100.0, "spot_time": self._epoch, "date_start": self._epoch, "longcode": "fake"},
                 subscription={"id": _sid()})]
         if msg_type == "buy":
+            self.buys_received += 1
             pid = req["buy"]
             prop = self.proposals.get(pid)
             if prop is None or pid in self.bought:
@@ -197,25 +218,37 @@ class FakeDeriv:
                     "code": "FakeInvalidProposal", "message": "unknown or already used proposal"})]
             self.bought.add(pid)
             cid, self._next_contract = self._next_contract, self._next_contract + 1
-            price = min(prop["amount"], float(req["price"]))
+            if prop["ask"] > float(req["price"]) + 1e-9:
+                self.bought.discard(pid)
+                return [self._envelope(req, "buy", error={
+                    "code": "FakePriceMoved", "message": "price moved beyond the cap"})]   # UNVERIFIED-ERR: invented
+            price = prop["ask"]
             payout = round(prop["amount"] * (1 + self.r), 2)
             c = Contract(cid, pid, price, payout, prop["req"]["contract_type"], prop["req"]["underlying_symbol"],
                          asyncio.get_running_loop().time())
+            c.purchase_time = int(time.time())
             self.contracts[cid] = c
             self.balance -= price
             asyncio.get_running_loop().call_later(self.settle_after, self._settle, cid)
             return [self._envelope(req, "buy", buy={
                 "balance_after": self.balance, "buy_price": price, "contract_id": cid, "longcode": "fake",
-                "payout": payout, "purchase_time": self._epoch, "shortcode": "fake", "start_time": self._epoch,
+                "payout": payout, "purchase_time": int(time.time()), "shortcode": "fake", "start_time": int(time.time()),
                 "transaction_id": cid + 5000})]
         if msg_type == "portfolio":
             open_ = [c for c in self.contracts.values() if not c.settled]
             return [self._envelope(req, "portfolio", portfolio={"contracts": [{
                 "contract_id": c.contract_id, "buy_price": c.buy_price, "payout": c.payout,
                 "contract_type": c.contract_type, "underlying_symbol": c.symbol, "currency": "USD",
-                "date_start": self._epoch, "expiry_time": self._epoch + 5, "longcode": "fake",
-                "purchase_time": self._epoch, "shortcode": "fake", "transaction_id": c.contract_id + 5000}
+                "date_start": c.purchase_time, "expiry_time": c.purchase_time + 5, "longcode": "fake",
+                "purchase_time": c.purchase_time, "shortcode": "fake", "transaction_id": c.contract_id + 5000}
                 for c in open_]})]
+        if msg_type == "profit_table":
+            done = [c for c in self.contracts.values() if c.settled]
+            return [self._envelope(req, "profit_table", profit_table={"count": len(done), "transactions": [{
+                "contract_id": c.contract_id, "buy_price": c.buy_price, "sell_price": c.payout if c.profit > 0 else 0.0,
+                "payout": c.payout, "purchase_time": c.purchase_time, "sell_time": c.sell_time,
+                "transaction_id": c.contract_id + 5000, "underlying_symbol": c.symbol, "contract_type": c.contract_type,
+                "longcode": "fake", "shortcode": "fake"} for c in done]})]
         if msg_type == "proposal_open_contract":
             tasks.append(asyncio.create_task(self._stream_contract(ws, req)))
             return []
@@ -246,6 +279,7 @@ class FakeDeriv:
     def _settle(self, cid: int) -> None:
         c = self.contracts[cid]
         c.settled = True
+        c.sell_time = int(time.time())
         c.profit = round(c.payout - c.buy_price, 2) if self.win else -c.buy_price
         self.balance += c.payout if self.win else 0.0
 
@@ -282,7 +316,9 @@ class FakeDeriv:
                         "buy_price": f"{c.buy_price:.2f}", "payout": f"{c.payout:.2f}",
                         "underlying_symbol": c.symbol, "contract_type": c.contract_type,
                         "profit": f"{c.profit:.2f}"}
-                if c.settled:
+                if c.settled and self.settle_profit_missing:
+                    body.pop("profit", None)
+                elif c.settled:
                     body.update(status="won" if c.profit > 0 else "lost",
                                 sell_price=f"{c.payout if c.profit > 0 else 0:.2f}")
                 await ws.send(json.dumps(self._envelope(req, "proposal_open_contract",
@@ -294,7 +330,8 @@ class FakeDeriv:
             return
 
 
-_TYPES = ("ticks_history", "time", "ticks", "ping", "balance", "proposal_open_contract", "proposal", "buy", "portfolio", "forget")
+_TYPES = ("ticks_history", "time", "ticks", "ping", "balance", "proposal_open_contract", "proposal", "buy", "portfolio",
+          "profit_table", "forget")
 
 
 def _sid() -> str:

@@ -62,3 +62,42 @@ def transition(conn: Connection, intent_id: str, expected: State, event: Event,
     )
     conn.execute(text("UPDATE orders SET state = :new WHERE intent_id = :i"), {"new": new.value, "i": intent_id})
     return new
+
+
+def get_intent(conn: Connection, intent_id: str):
+    return conn.execute(text("SELECT id, idempotency_key, mode, account_id, symbol, contract_type, stake, state, created_at "
+                             "FROM order_intents WHERE id = :i"), {"i": intent_id}).one()
+
+
+def open_order(conn: Connection, intent_id: str, *, contract_id: int, transaction_id: int | None, buy_price: Decimal,
+               payout: Decimal, mode: str, account_id: str, state: State = State.OPEN) -> str:
+    """Create the orders row once a contract id is known. deriv_contract_id is UNIQUE: a contract can belong to only
+    one order, which is what makes a double attribution fail loudly."""
+    oid = str(uuid.uuid4())
+    conn.execute(
+        text("INSERT INTO orders (id, intent_id, deriv_contract_id, deriv_transaction_id, buy_price, payout, state,"
+             " opened_at, mode, account_id) VALUES (:o, :i, :c, :t, :bp, :po, :st, now(), :m, :a)"),
+        {"o": oid, "i": intent_id, "c": contract_id, "t": transaction_id, "bp": buy_price, "po": payout,
+         "st": state.value, "m": mode, "a": account_id})
+    return oid
+
+
+def settle_order(conn: Connection, intent_id: str, *, profit: Decimal, final_state: State = State.SETTLED) -> None:
+    n = conn.execute(text("UPDATE orders SET profit = :p, settled_at = now(), state = :s WHERE intent_id = :i "
+                          "AND settled_at IS NULL"), {"p": profit, "s": final_state.value, "i": intent_id}).rowcount
+    if n != 1:
+        raise StaleState(f"order for intent {intent_id} is missing or already settled")
+
+
+def order_for_contract(conn: Connection, contract_id: int):
+    return conn.execute(text("SELECT intent_id, state FROM orders WHERE deriv_contract_id = :c"), {"c": contract_id}).first()
+
+
+def record_balance(conn: Connection, *, mode: str, account_id: str, balance: Decimal, currency: str) -> None:
+    conn.execute(text("INSERT INTO balance_snapshots (mode, account_id, balance, currency) VALUES (:m, :a, :b, :c)"),
+                 {"m": mode, "a": account_id, "b": balance, "c": currency})
+
+
+def intents_in_state(conn: Connection, state: State):
+    return conn.execute(text("SELECT id, symbol, contract_type, stake, account_id, created_at FROM order_intents "
+                             "WHERE state = :s ORDER BY created_at"), {"s": state.value}).all()
