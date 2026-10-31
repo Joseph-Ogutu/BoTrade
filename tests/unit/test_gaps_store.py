@@ -69,3 +69,53 @@ def test_store_survives_reopen(tmp_path):
     s2 = SqliteTickStore(p)
     assert s2.count("1HZ100V") == 2
     s2.close()
+
+
+# ---- trailing zeros: the digit rule needs the quote at exactly pip_size decimals (kill-criterion A1.4) -------------
+
+def _tick(q, pip=2, epoch=1, symbol="1HZ100V"):
+    return Tick(symbol=symbol, epoch=epoch, quote=Decimal(q), pip_size=pip)
+
+
+def test_store_pads_trailing_zeros_to_pip_size(tmp_path):
+    store = SqliteTickStore(tmp_path / "t.sqlite")
+    store.insert_many([_tick("1310.7", epoch=1), _tick("1310", epoch=2), _tick("1310.75", epoch=3),
+                       _tick("0.5", pip=3, epoch=4)])
+    raw = [r[0] for r in store._conn.execute("SELECT quote FROM ticks ORDER BY epoch")]
+    assert raw == ["1310.70", "1310.00", "1310.75", "0.500"]
+    store.close()
+
+
+def test_store_never_rounds_a_quote_that_has_more_decimals_than_pip_size(tmp_path):
+    store = SqliteTickStore(tmp_path / "t.sqlite")
+    store.insert_many([_tick("1.23456", pip=2)])
+    assert store._conn.execute("SELECT quote, pip_size FROM ticks").fetchone() == ("1.23456", 2)
+    store.close()
+
+
+def test_store_records_pip_size_per_row(tmp_path):
+    store = SqliteTickStore(tmp_path / "t.sqlite")
+    store.insert_many([_tick("5.5", pip=1, epoch=1), _tick("5.50", pip=2, epoch=2, symbol="R_100")])
+    assert dict(store._conn.execute("SELECT epoch, pip_size FROM ticks")) == {1: 1, 2: 2}
+    store.close()
+
+
+def test_old_database_is_migrated_and_backfill_rows_get_their_pip_size(tmp_path):
+    import sqlite3
+
+    p = tmp_path / "old.sqlite"
+    c = sqlite3.connect(p)
+    c.executescript("""
+      CREATE TABLE ticks (symbol TEXT NOT NULL, epoch INTEGER NOT NULL, quote TEXT NOT NULL,
+        received_at TEXT NOT NULL DEFAULT 'x', source TEXT NOT NULL DEFAULT 'stream',
+        PRIMARY KEY (symbol, epoch)) WITHOUT ROWID;
+      INSERT INTO ticks (symbol, epoch, quote, source) VALUES ('A', 1, '10.70', 'backfill');
+      INSERT INTO ticks (symbol, epoch, quote, source) VALUES ('A', 2, '10.7', 'stream');
+    """)
+    c.commit()
+    c.close()
+    store = SqliteTickStore(p)
+    rows = dict(store._conn.execute("SELECT epoch, pip_size FROM ticks"))
+    assert rows[1] == 2          # backfill rows were quantised to pip_size decimals, so the count is recoverable
+    assert rows[2] is None       # stream rows from before the fix lost trailing zeros: pip_size unknown, never guessed
+    store.close()

@@ -19,9 +19,21 @@ CREATE TABLE IF NOT EXISTS ticks (
   quote       TEXT    NOT NULL,
   received_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   source      TEXT    NOT NULL DEFAULT 'stream',
+  pip_size    INTEGER,
   PRIMARY KEY (symbol, epoch)
 ) WITHOUT ROWID;
 """
+
+
+def _normalise(quote: Decimal, pip_size: int) -> str:
+    """Quote text with at least pip_size decimals. Pads with zeros only (exact); never rounds.
+
+    JSON numbers lose trailing zeros (1310.70 arrives as 1310.7), but the Gate 1 digit is the last character of the
+    quote at exactly pip_size decimals (kill-criterion A1.4), so the zero must be restored before storing.
+    """
+    if -quote.as_tuple().exponent < pip_size:  # type: ignore[operator]
+        quote = quote.quantize(Decimal(1).scaleb(-pip_size))
+    return format(quote, "f")
 
 
 class SqliteTickStore:
@@ -35,13 +47,21 @@ class SqliteTickStore:
         if "source" not in cols:  # databases created before the column existed: every old row came from the stream
             self._conn.execute("ALTER TABLE ticks ADD COLUMN source TEXT NOT NULL DEFAULT 'stream'")
             self._conn.commit()
+        if "pip_size" not in cols:
+            self._conn.execute("ALTER TABLE ticks ADD COLUMN pip_size INTEGER")
+            # Backfill rows were quantised to pip_size decimals when stored, so their pip_size can be recovered.
+            # Stream rows stored before the trailing-zero fix lost zeros: their pip_size stays NULL, never guessed.
+            self._conn.execute(
+                "UPDATE ticks SET pip_size = CASE WHEN instr(quote, '.') > 0 "
+                "THEN length(quote) - instr(quote, '.') ELSE 0 END WHERE source = 'backfill' AND pip_size IS NULL")
+            self._conn.commit()
 
     def insert_many(self, ticks: list[Tick], source: str = "stream") -> int:
         """Insert ticks, ignoring duplicates (the first source wins). Returns the number of new rows."""
         before = self._conn.total_changes
         self._conn.executemany(
-            "INSERT OR IGNORE INTO ticks (symbol, epoch, quote, source) VALUES (?, ?, ?, ?)",
-            [(t.symbol, t.epoch, str(t.quote), source) for t in ticks],
+            "INSERT OR IGNORE INTO ticks (symbol, epoch, quote, source, pip_size) VALUES (?, ?, ?, ?, ?)",
+            [(t.symbol, t.epoch, _normalise(t.quote, t.pip_size), source, t.pip_size) for t in ticks],
         )
         self._conn.commit()
         return self._conn.total_changes - before

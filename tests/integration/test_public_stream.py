@@ -177,3 +177,18 @@ async def test_other_subscription_errors_still_reconnect():
         stats = StreamStats()
         got = await take(fake.url, ["1HZ100V"], 3, stats=stats)
         assert len(got) == 3 and stats.reconnects >= 1
+
+
+async def test_streamed_quotes_are_stored_with_exactly_pip_size_decimals(tmp_path):
+    """The fake sends JSON numbers like 100.1 for pip_size 2; the stored text must read 100.10 (digit 0, not 1)."""
+    async with FakeDeriv() as fake:
+        store = SqliteTickStore(tmp_path / "t.sqlite")
+        await asyncio.wait_for(
+            run_collector(fake.url, ["1HZ100V"], store, asyncio.Event(), max_ticks=60, flush_every=20,
+                          flush_interval=0.2, **FAST), 10)
+        quotes = [r[0] for r in store._conn.execute("SELECT quote FROM ticks")]
+        pips = {r[0] for r in store._conn.execute("SELECT pip_size FROM ticks")}
+        store.close()
+    assert quotes and pips == {2}
+    assert all(len(q.split(".")[1]) == 2 for q in quotes)
+    assert any(q.endswith("0") for q in quotes)  # the case the bug got wrong
