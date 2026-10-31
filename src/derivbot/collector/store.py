@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS ticks (
   epoch       INTEGER NOT NULL,
   quote       TEXT    NOT NULL,
   received_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  source      TEXT    NOT NULL DEFAULT 'stream',
   PRIMARY KEY (symbol, epoch)
 ) WITHOUT ROWID;
 """
@@ -30,13 +31,17 @@ class SqliteTickStore:
         self._conn = sqlite3.connect(path, check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.executescript(_SCHEMA)
+        cols = [r[1] for r in self._conn.execute("PRAGMA table_info(ticks)")]
+        if "source" not in cols:  # databases created before the column existed: every old row came from the stream
+            self._conn.execute("ALTER TABLE ticks ADD COLUMN source TEXT NOT NULL DEFAULT 'stream'")
+            self._conn.commit()
 
-    def insert_many(self, ticks: list[Tick]) -> int:
-        """Insert ticks, ignoring duplicates. Returns the number of new rows."""
+    def insert_many(self, ticks: list[Tick], source: str = "stream") -> int:
+        """Insert ticks, ignoring duplicates (the first source wins). Returns the number of new rows."""
         before = self._conn.total_changes
         self._conn.executemany(
-            "INSERT OR IGNORE INTO ticks (symbol, epoch, quote) VALUES (?, ?, ?)",
-            [(t.symbol, t.epoch, str(t.quote)) for t in ticks],
+            "INSERT OR IGNORE INTO ticks (symbol, epoch, quote, source) VALUES (?, ?, ?, ?)",
+            [(t.symbol, t.epoch, str(t.quote), source) for t in ticks],
         )
         self._conn.commit()
         return self._conn.total_changes - before
@@ -60,6 +65,10 @@ class SqliteTickStore:
     def epochs_and_quotes(self, symbol: str) -> list[tuple[int, Decimal]]:
         return [(r[0], Decimal(r[1])) for r in self._conn.execute(
             "SELECT epoch, quote FROM ticks WHERE symbol=? ORDER BY epoch", (symbol,))]
+
+    def count_by_source(self, symbol: str) -> dict[str, int]:
+        return dict(self._conn.execute(
+            "SELECT source, COUNT(*) FROM ticks WHERE symbol=? GROUP BY source", (symbol,)).fetchall())
 
     def close(self) -> None:
         self._conn.close()

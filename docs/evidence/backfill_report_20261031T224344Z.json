@@ -1,0 +1,97 @@
+{
+  "_evidence": {
+    "captured_at_utc": "2026-10-31T22:43:44Z",
+    "provenance": "recorded by backfill_holdout.py (UTC clock)",
+    "request": {
+      "endpoint": "wss://api.derivws.com/trading/v1/options/ws/public",
+      "h0": 1793486149,
+      "method": "ticks_history"
+    }
+  },
+  "h0_epoch": 1793486149,
+  "h0_utc": "2026-10-31T22:35:49Z",
+  "symbols": {
+    "1HZ100V": {
+      "checks": {
+        "all_stored_epochs_after_h0": true,
+        "no_page_rejected": true,
+        "no_problems": true,
+        "reached_h0": true
+      },
+      "coverage": {
+        "expected": 447,
+        "gap_count": 0,
+        "longest_gap_s": 0,
+        "missing": 0,
+        "ratio": 1.0,
+        "rows": 447
+      },
+      "dropped_not_after_h0": 553,
+      "fetched": 1000,
+      "first_epoch_utc": "2026-10-31T22:35:50Z",
+      "last_epoch_utc": "2026-10-31T22:43:16Z",
+      "page_log": [
+        {
+          "accepted": true,
+          "end": "latest",
+          "max": 1793486596,
+          "min": 1793485597,
+          "n": 1000
+        }
+      ],
+      "pages": 1,
+      "problems": [],
+      "rows_by_source": {
+        "backfill": 447
+      },
+      "rows_in_db": 447,
+      "stored_new": 63,
+      "stream_vs_history": {
+        "mismatches": 0,
+        "overlap": 12,
+        "stream_ticks": 13
+      }
+    },
+    "R_100": {
+      "checks": {
+        "all_stored_epochs_after_h0": true,
+        "no_page_rejected": true,
+        "no_problems": true,
+        "reached_h0": true
+      },
+      "coverage": {
+        "expected": 230,
+        "gap_count": 0,
+        "longest_gap_s": 0,
+        "missing": 0,
+        "ratio": 1.0,
+        "rows": 230
+      },
+      "dropped_not_after_h0": 770,
+      "fetched": 1000,
+      "first_epoch_utc": "2026-10-31T22:35:50Z",
+      "last_epoch_utc": "2026-10-31T22:43:28Z",
+      "page_log": [
+        {
+          "accepted": true,
+          "end": "latest",
+          "max": 1793486608,
+          "min": 1793484610,
+          "n": 1000
+        }
+      ],
+      "pages": 1,
+      "problems": [],
+      "rows_by_source": {
+        "backfill": 230
+      },
+      "rows_in_db": 230,
+      "stored_new": 31,
+      "stream_vs_history": {
+        "mismatches": 0,
+        "overlap": 7,
+        "stream_ticks": 7
+      }
+    }
+  }
+}

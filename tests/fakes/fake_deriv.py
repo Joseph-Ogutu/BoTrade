@@ -68,6 +68,12 @@ class FakeDeriv:
         self.reject_handshake_status: int | None = None
         self.drop_ticks_after: int | None = None
         self.closed_symbols: set[str] = set()
+        # ticks_history emulation. Behaviour copied from what was OBSERVED on the public endpoint (2026-10-31):
+        # count clamps to 1000; an `end` older than the retention window silently returns the LATEST ticks.
+        self.history_interval = {"1HZ100V": 1, "R_100": 2}
+        self.history_retention_s = 12 * 3600
+        self.history_now = 1_793_486_000
+        self.history_skip: set[tuple[str, int]] = set()  # (symbol, epoch) removed to create holes
         self._server: websockets.WebSocketServer | None = None
         self._next_contract = 1000
         self._epoch = 1_700_000_000
@@ -159,6 +165,10 @@ class FakeDeriv:
     async def _process(self, ws, req: dict, msg_type: str, tasks: list[asyncio.Task]) -> list[dict]:
         if msg_type == "ping":
             return [self._envelope(req, "ping", ping="pong")]
+        if msg_type == "time":
+            return [self._envelope(req, "time", time=self.history_now)]
+        if msg_type == "ticks_history":
+            return [self._history(req)]
         if msg_type == "balance":
             return [self._envelope(req, "balance", balance={
                 "balance": self.balance, "currency": "USD", "loginid": "VRTC0000001", "id": _sid()},
@@ -214,6 +224,25 @@ class FakeDeriv:
         # UNVERIFIED-ERR: invented code for an unsupported request.
         return [self._envelope(req, msg_type, error={"code": "FakeUnsupported", "message": "not implemented"})]
 
+    def history_ticks(self, symbol: str) -> list[tuple[int, float]]:
+        step = self.history_interval.get(symbol, 1)
+        first = self.history_now - self.history_retention_s
+        first -= first % step
+        return [(e, round(1000 + (e % 977) * 0.01, 2)) for e in range(first, self.history_now + 1, step)
+                if (symbol, e) not in self.history_skip]
+
+    def _history(self, req: dict) -> dict:
+        ticks = self.history_ticks(req["ticks_history"])
+        count = min(int(req.get("count", 1000)), 1000)
+        end = req.get("end", "latest")
+        oldest_available = self.history_now - self.history_retention_s
+        if end == "latest" or int(end) < oldest_available:
+            window = ticks[-count:]  # OBSERVED silent fallback: an end beyond retention returns the latest ticks
+        else:
+            window = [t for t in ticks if t[0] <= int(end)][-count:]
+        return self._envelope(req, "history", history={"prices": [p for _, p in window],
+                                                       "times": [e for e, _ in window]}, pip_size=2.0)
+
     def _settle(self, cid: int) -> None:
         c = self.contracts[cid]
         c.settled = True
@@ -265,7 +294,7 @@ class FakeDeriv:
             return
 
 
-_TYPES = ("ticks", "ping", "balance", "proposal_open_contract", "proposal", "buy", "portfolio", "forget")
+_TYPES = ("ticks_history", "time", "ticks", "ping", "balance", "proposal_open_contract", "proposal", "buy", "portfolio", "forget")
 
 
 def _sid() -> str:
