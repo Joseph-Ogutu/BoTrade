@@ -6,7 +6,8 @@ Public endpoint: wss://api.derivws.com/trading/v1/options/ws/public
 Behaviour:
 - reconnects with exponential backoff and full jitter, resubscribing every symbol each time;
 - a connection that is open but silent for `stale_after` seconds is treated as dead and reconnected;
-- Deriv error messages are logged and cause a reconnect, never a tight loop;
+- a subscription error `MarketIsClosed` (OBSERVED live 2026-11-01, msg_type "ticks") defers only that symbol and
+  retries it every `resubscribe_closed_after` seconds on the same connection; other errors reconnect with backoff;
 - URLs are redacted before logging.
 """
 
@@ -17,7 +18,7 @@ import json
 import logging
 import random
 from collections.abc import AsyncIterator, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import websockets
 
@@ -38,6 +39,7 @@ class StreamStats:
     errors: int = 0
     stalls: int = 0
     ticks: int = 0
+    closed_symbols: set[str] = field(default_factory=set)
 
 
 async def stream_ticks(
@@ -48,6 +50,7 @@ async def stream_ticks(
     stats: StreamStats | None = None,
     rate_limiter: RateLimiter | None = None,
     stale_after: float = 30.0,
+    resubscribe_closed_after: float = 300.0,
     backoff_base: float = 1.0,
     backoff_cap: float = 60.0,
     jitter: Callable[[], float] = random.random,
@@ -70,8 +73,18 @@ async def stream_ticks(
                         await rate_limiter.acquire("ticks")
                     await ws.send(json.dumps(req_ticks(symbol, req_id=req_id)))
 
-                last_msg = asyncio.get_running_loop().time()
+                req_symbols = {i: sym for i, sym in zip(range(req_id - len(symbols) + 1, req_id + 1), symbols)}
+                due: dict[str, float] = {}
+                loop = asyncio.get_running_loop()
+                last_msg = loop.time()
                 while not halt.is_set():
+                    for sym in [x for x, at in due.items() if at <= loop.time()]:
+                        del due[sym]
+                        req_id += 1
+                        req_symbols[req_id] = sym
+                        if rate_limiter:
+                            await rate_limiter.acquire("ticks")
+                        await ws.send(json.dumps(req_ticks(sym, req_id=req_id)))
                     try:
                         raw = await asyncio.wait_for(ws.recv(), timeout=min(stale_after, 0.5))
                     except asyncio.TimeoutError:
@@ -84,6 +97,13 @@ async def stream_ticks(
                     try:
                         msg = parse_message(json.loads(raw))
                     except DerivApiError as exc:
+                        sym = req_symbols.get(exc.req_id) if exc.req_id is not None else None
+                        if exc.code == "MarketIsClosed" and exc.msg_type == "ticks" and sym:
+                            if sym not in stats.closed_symbols:
+                                log.info("%s: market closed, retrying every %.0fs", sym, resubscribe_closed_after)
+                            stats.closed_symbols.add(sym)
+                            due[sym] = loop.time() + resubscribe_closed_after
+                            continue
                         stats.errors += 1
                         log.warning("server error, reconnecting: %s", redact_text(str(exc)))
                         break
@@ -94,6 +114,7 @@ async def stream_ticks(
                     if isinstance(msg, TickMsg):
                         attempt = 0
                         stats.ticks += 1
+                        stats.closed_symbols.discard(msg.tick.symbol)
                         yield msg.tick
         except (websockets.WebSocketException, OSError, asyncio.TimeoutError) as exc:
             stats.errors += 1

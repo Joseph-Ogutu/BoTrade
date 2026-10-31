@@ -1,0 +1,22 @@
+{
+  "symbols": [
+    {"symbol": "1HZ100V",  "expected_interval": 1, "always_open": true},
+    {"symbol": "R_100",    "expected_interval": 2, "always_open": true},
+    {"symbol": "cryBTCUSD", "expected_interval": 0, "always_open": true},
+    {"symbol": "cryETHUSD", "expected_interval": 0, "always_open": true},
+    {"symbol": "frxEURUSD", "expected_interval": 0, "always_open": false},
+    {"symbol": "frxGBPUSD", "expected_interval": 0, "always_open": false},
+    {"symbol": "frxUSDJPY", "expected_interval": 0, "always_open": false},
+    {"symbol": "frxXAUUSD", "expected_interval": 0, "always_open": false}
+  ],
+  "db_path": "/data/ticks.sqlite",
+  "heartbeat_path": "/data/heartbeat.json",
+  "heartbeat_interval_s": 10,
+  "flush_interval_s": 2,
+  "flush_every": 200,
+  "stale_after_s": 30,
+  "backoff_base_s": 1,
+  "backoff_cap_s": 60,
+  "health_max_age_s": 120,
+  "max_silence_exit_s": 600
+}

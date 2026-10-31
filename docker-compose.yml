@@ -1,0 +1,36 @@
+# Collector only. No env_file, no secrets: the collector uses the public endpoint.
+# Postgres, strategies and the executor are NOT part of this file.
+services:
+  collector:
+    build:
+      context: .
+      dockerfile: Dockerfile.collector
+      args:
+        APP_UID: ${APP_UID:-1000}   # must match the owner of ./data on the host
+    image: derivbot-collector:local
+    container_name: derivbot-collector
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    pids_limit: 100
+    stop_grace_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      # Fails if the heartbeat file is stale or a required (always open) symbol has not ticked in
+      # health_max_age_s seconds (config/collector.json). Closed-market symbols are not counted.
+      test: ["CMD", "python", "-m", "derivbot.collector.healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s

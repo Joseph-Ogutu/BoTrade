@@ -65,6 +65,7 @@ class FakeDeriv:
         self.connections = 0
         self.reject_handshake_status: int | None = None
         self.drop_ticks_after: int | None = None
+        self.closed_symbols: set[str] = set()
         self._server: websockets.WebSocketServer | None = None
         self._next_contract = 1000
         self._epoch = 1_700_000_000
@@ -161,6 +162,10 @@ class FakeDeriv:
                 "balance": self.balance, "currency": "USD", "loginid": "VRTC0000001", "id": _sid()},
                 subscription={"id": _sid()})]
         if msg_type == "ticks":
+            if req["ticks"] in self.closed_symbols:
+                # Shape OBSERVED live on 2026-11-01 (code MarketIsClosed, msg_type ticks). Message text paraphrased.
+                return [self._envelope(req, "ticks", error={
+                    "code": "MarketIsClosed", "message": "This market is presently closed."})]
             tasks.append(asyncio.create_task(self._stream_ticks(ws, req)))
             return []
         if msg_type == "proposal":

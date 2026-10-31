@@ -139,3 +139,39 @@ async def test_collector_survives_drop_and_keeps_data(tmp_path):
         assert stats.stream.reconnects >= 1
         assert store.count("1HZ100V") >= 20
         store.close()
+
+
+async def test_closed_market_symbol_does_not_cause_reconnects_and_resubscribes_later():
+    async with FakeDeriv() as fake:
+        fake.closed_symbols = {"frxEURUSD"}
+        stats = StreamStats()
+        halt = asyncio.Event()
+        got = []
+
+        async def run():
+            async for t in stream_ticks(fake.url, ["1HZ100V", "frxEURUSD"], halt, stats=stats,
+                                        resubscribe_closed_after=0.3, **FAST):
+                got.append(t.symbol)
+
+        task = asyncio.create_task(run())
+        await asyncio.sleep(0.5)
+        assert fake.connections == 1, "a closed market must not cost a reconnect"
+        assert "1HZ100V" in got and "frxEURUSD" not in got
+        assert "frxEURUSD" in stats.closed_symbols
+        fake.closed_symbols = set()  # market opens
+        await asyncio.sleep(0.8)
+        halt.set()
+        await asyncio.wait_for(task, 3)
+        assert "frxEURUSD" in got
+        assert fake.connections == 1
+        assert "frxEURUSD" not in stats.closed_symbols
+
+
+async def test_other_subscription_errors_still_reconnect():
+    async with FakeDeriv() as fake:
+        from tests.fakes.fake_deriv import Fault
+
+        fake.inject(Fault("ticks", "error", code="SomethingElse"))
+        stats = StreamStats()
+        got = await take(fake.url, ["1HZ100V"], 3, stats=stats)
+        assert len(got) == 3 and stats.reconnects >= 1
