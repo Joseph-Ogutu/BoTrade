@@ -1,0 +1,70 @@
+{
+  "_evidence": {
+    "captured_at_utc": "2026-10-31T22:46:28Z",
+    "provenance": "recorded by coverage_report.py (UTC clock); epochs only",
+    "request": {
+      "dbs": [
+        "data/ticks.sqlite"
+      ],
+      "from_first_tick": true
+    }
+  },
+  "dbs": [
+    "data/ticks.sqlite"
+  ],
+  "h0_epoch": 1793486149,
+  "h0_utc": "2026-10-31T22:35:49Z",
+  "label": "local-collector-pre-H0",
+  "symbols": {
+    "1HZ100V": {
+      "days": [
+        {
+          "day": "2026-10-31",
+          "expected": 188,
+          "gap_count": 2,
+          "longest_gap_s": 7,
+          "missing": 8,
+          "ticks": 180,
+          "uptime": 0.9574468085106383
+        }
+      ],
+      "first_utc": "2026-10-31T22:14:09Z",
+      "interval_s": 1,
+      "last_utc": "2026-10-31T22:17:16Z",
+      "needed_for_gate1": 100000,
+      "summary": {
+        "contiguous_fraction": 1.0,
+        "longest_segment": 121,
+        "segments": 3,
+        "ticks": 180,
+        "ticks_in_valid_segments": 180,
+        "valid_segments": 3
+      }
+    },
+    "R_100": {
+      "days": [
+        {
+          "day": "2026-10-31",
+          "expected": 94,
+          "gap_count": 2,
+          "longest_gap_s": 8,
+          "missing": 4,
+          "ticks": 90,
+          "uptime": 0.9574468085106383
+        }
+      ],
+      "first_utc": "2026-10-31T22:14:08Z",
+      "interval_s": 2,
+      "last_utc": "2026-10-31T22:17:14Z",
+      "needed_for_gate1": 100000,
+      "summary": {
+        "contiguous_fraction": 1.0,
+        "longest_segment": 61,
+        "segments": 3,
+        "ticks": 90,
+        "ticks_in_valid_segments": 90,
+        "valid_segments": 3
+      }
+    }
+  }
+}
