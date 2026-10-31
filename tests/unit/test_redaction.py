@@ -128,3 +128,15 @@ def test_structlog_style_processor():
     event = {"event": f"using {FAKE_PAT}", "otp": FAKE_OTP}
     out = redaction.redact_event_dict(None, "info", event)
     assert FAKE_PAT not in repr(out) and FAKE_OTP not in repr(out)
+
+
+def test_setup_logging_caps_transport_loggers_and_redacts(capsys):
+    from derivbot.common.logs import setup_logging
+
+    register_secret(FAKE_PAT)
+    setup_logging("DEBUG")
+    assert logging.getLogger("websockets.client").level == logging.WARNING
+    logging.getLogger("derivbot.test").info("using %s at %s", FAKE_PAT, OTP_URL)
+    out = capsys.readouterr().out
+    assert FAKE_PAT not in out and FAKE_OTP not in out
+    assert "using" in out
