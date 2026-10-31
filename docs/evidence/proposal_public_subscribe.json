@@ -1,0 +1,40 @@
+{
+  "echo_req": {
+    "amount": 1,
+    "basis": "stake",
+    "contract_type": "DIGITEVEN",
+    "currency": "USD",
+    "duration": 5,
+    "duration_unit": "t",
+    "proposal": 1,
+    "req_id": 1,
+    "subscribe": 1,
+    "underlying_symbol": "1HZ100V"
+  },
+  "msg_type": "proposal",
+  "proposal": {
+    "ask_price": 1.0,
+    "contract_details": {
+      "barrier": "0"
+    },
+    "date_expiry": 1793484108,
+    "date_start": 1793484103,
+    "id": "e4a50441-4847-4b26-966b-b1e43d999db4",
+    "longcode": "Win payout if the last digit of Volatility 100 (1s) Index is even after 5 ticks.",
+    "payout": 1.95,
+    "spot": 1305.92,
+    "spot_time": 1793484103,
+    "validation_params": {
+      "payout": {
+        "max": "1000.00"
+      },
+      "stake": {
+        "min": "0.35"
+      }
+    }
+  },
+  "req_id": 1,
+  "subscription": {
+    "id": "e4a50441-4847-4b26-966b-b1e43d999db4"
+  }
+}

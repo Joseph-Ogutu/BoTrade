@@ -1,0 +1,53 @@
+{
+  "contracts_for": {
+    "available": [
+      {
+        "barriers": 0,
+        "contract_category": "multiplier",
+        "contract_type": "MULTUP",
+        "default_stake": 2,
+        "expiry_type": "no_expiry",
+        "market": "cryptocurrency",
+        "max_contract_duration": "0",
+        "min_contract_duration": "0",
+        "multiplier_range": [
+          100,
+          200,
+          300,
+          500,
+          800
+        ],
+        "sentiment": "up",
+        "submarket": "non_stable_coin",
+        "underlying_symbol": "cryBTCUSD"
+      },
+      {
+        "barriers": 0,
+        "contract_category": "multiplier",
+        "contract_type": "MULTDOWN",
+        "default_stake": 2,
+        "expiry_type": "no_expiry",
+        "market": "cryptocurrency",
+        "max_contract_duration": "0",
+        "min_contract_duration": "0",
+        "multiplier_range": [
+          100,
+          200,
+          300,
+          500,
+          800
+        ],
+        "sentiment": "down",
+        "submarket": "non_stable_coin",
+        "underlying_symbol": "cryBTCUSD"
+      }
+    ],
+    "hit_count": 2
+  },
+  "echo_req": {
+    "contracts_for": "cryBTCUSD",
+    "req_id": 1
+  },
+  "msg_type": "contracts_for",
+  "req_id": 1
+}
