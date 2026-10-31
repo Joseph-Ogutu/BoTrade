@@ -11,6 +11,7 @@ testpaths = ["tests"]
 addopts = "-q"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+markers = ["postgres: needs the local Postgres from scripts/dev_up.sh", "redis: needs the local Redis from scripts/dev_up.sh"]
 
 [tool.ruff]
 line-length = 100

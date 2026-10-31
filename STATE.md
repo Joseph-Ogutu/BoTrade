@@ -6,6 +6,31 @@ Update this file and commit after every completed task. If it is not in this fil
 Last updated: see the newest commit time in UTC (`TZ=UTC git log -1 --date=format-local:%Y-%m-%dT%H:%M:%SZ`) by: Claude Code session
 Git HEAD when updated: c399a69 (scaffold commit)
 
+## 0. BUILD PHASE PROGRESS (resume here)
+
+Build phase started 2026-10-31T23:08Z by owner instruction. Order and rules are fixed; do items in order, commit and update this table after each. Integrity rules: no digit, strategy or backtest statistic on real ticks; do not change or freeze src/derivbot/gate1; register hypotheses before any real-data run; no LLM in the loop; real trading unreachable; every authenticated assumption tagged UNVERIFIED.
+
+Local infra for tests: `scripts/dev_up.sh` (Postgres 16 on 127.0.0.1:55432, Redis 7 on 127.0.0.1:56379, throwaway password in git-ignored dev-local/). Database and Redis tests SKIP (and say so) if it is down: a skipped test is not evidence.
+
+| # | Item | Status | Evidence |
+|---|---|---|---|
+| 1 | Persistence: Postgres + Alembic + append-only audit + Redis KV | DONE | see Done list |
+| 2 | Typed settings, versioned risk config with SET_BY_OWNER failing loudly | TODO | |
+| 3 | Order state machine, property tests | TODO | |
+| 4 | Risk engine, stake sizing, 100% branch coverage on rules (REPORT) | TODO | |
+| 5 | Kill switch: Telegram, localhost admin API, flag file; survives restart | TODO | |
+| 6 | Executor against fake Deriv server, failure injection | TODO | |
+| 7 | Reconciler (REPORT) | TODO | |
+| 8 | Contract-level backtester, look-ahead canary (simulated data only) | TODO | |
+| 9 | Strategy modules (pure, no tuning) + hypotheses registered | TODO | |
+| 10 | Notifier (fake transport), admin API on 127.0.0.1 with bearer auth | TODO | |
+| 11 | Real-trading guard (REPORT) | TODO | |
+| 12 | Full compose, healthchecks, backups, runbook, CI config. Do NOT deploy | TODO | |
+| 13 | Project skills in .claude/skills (needs .gitignore exception) | TODO | |
+| 14 | Review briefs: docs/review-risk-executor.md, docs/review-security.md | TODO | |
+
+Resume point: item 2.
+
 ## 1. Project in one paragraph
 
 Personal Deriv trading bot, rebuilt from scratch as a thin asyncio Python service. Demo only. Profitability is unproven and must pass the pre-registered edge test (HANDBOOK section 4) before anything else matters. The old bot is archived and is not to be reused without owner approval.
@@ -43,6 +68,7 @@ Phase checklist (tick only when acceptance criteria in HANDBOOK section 13 are m
 
 ## 3. Done so far (append, newest first)
 
+- 2026-10-31 UTC (23:20Z): BUILD ITEM 1 persistence. Alembic migration 0001 creates every handbook section 8 table plus order_events (implied by the ER diagram), with CHECK constraints for the 12 order states, `order_intents_demo_only` and `orders_demo_only` (mode = 'demo', so a real-mode row needs a deliberate migration), and audit_events with an UPDATE/DELETE row trigger and a TRUNCATE statement trigger. src/derivbot/db (engine, append_audit with redaction and a closed event vocabulary) and src/derivbot/kv (Redis and in-memory stores, IntentLock with owner-token release, RateCounter, HeartbeatKV). Local compose docker-compose.dev.yml (127.0.0.1 only, secret via file, tmpfs data). 29 tests pass against the real containers with 0 skipped: audit UPDATE, DELETE and TRUNCATE are each rejected with "append-only" and leave the row count unchanged; a real-mode intent is rejected by the database; downgrade to base then upgrade works. The SQLite tick store for the collector is unchanged
 - 2026-10-31 UTC (23:00Z): Gate 1 harness built and controls run on SIMULATED data only (seed 20261031, fixed before running, no re-rolling). Code: src/derivbot/gate1 (numerics without scipy, checked against scipy references; the four registered tests, checked against hand cases, scipy and loop-based oracles on gappy data; pipeline with segmentation, halves, shuffles and the decision rule; controls; a permit-gated real-data loader). Results, docs/evidence/gate1_control_20261031T230012Z.json: negative control, 1000 series of 50,000 iid digits, no gaps and with random gaps: per-test false-positive rates 0.044 to 0.056 and 0.048 to 0.053 (band 0.0293 to 0.0707), KS uniformity of p-values passed for all, any Holm rejection in the family of 8 was 0.0510 and 0.0590 (limit 0.0707). Positive control, 200 series of 100,000 digits per planted structure: detection 1.0 for every required test (limit 0.95). Run-validity machinery: rates 0.040 to 0.065 (band 0.0038 to 0.0962). NOT run on any real tick. scripts/run_gate1.py exists but refuses to start before 2026-11-15T00:00:00Z, without a frozen harness commit in docs/gates.md, or if harness files changed since; its refusal paths are tested. The harness is not frozen yet. Tests: 238 pass
 - 2026-10-31 UTC (22:52Z): two defects found while writing the harness, both fixed in the open before any digit statistic on real data. (1) Store bug: JSON numbers drop trailing zeros, so a streamed quote 1310.70 was stored as 1310.7 and its last character (the digit) would be 7 instead of 0, about 1 tick in 10. Fixed (commit "fix(store): restore trailing zeros..."): quotes are zero-padded to pip_size decimals (never rounded) and pip_size is stored per tick. The collector image built earlier contains the bug: the VM must build from a checkout that includes the fix. No holdout tick was affected (no streamed tick after H0 had been stored). (2) Rule defect: the A1.7 shuffle validity check is impossible for the uniformity test (shuffling keeps counts, so its rate is 0 or 1 and every run would be INVALID). Amendment 3 (committed 2026-10-31T22:52:19Z, epoch 1793487139) uses 200 simulated iid-uniform series of the same length for that test and keeps shuffles for the 3 serial tests, and registers the tick validity rule (quote decimals must equal pip_size, otherwise the tick is excluded and counted). Tests: 172 pass
 - 2026-10-31 UTC (22:49Z): pre-push security scan, docs/security-scan.md, tool scripts/scan_history.py (prints paths, hashes and pattern names only; tests prove it never prints a secret). 27 commits on all refs: no key-format secrets, no token file and no real env file ever committed (only .env.example with placeholders); the 4 pattern hits are a Deriv documentation example, a fake OTP used in a redaction test, and a CHANGE_ME database placeholder; legacy/ is not in the repo; no remote is configured and nothing was pushed. Open decisions for the owner before the first push: public or private, the personal e-mail in all commit metadata (a rewrite changes hashes, so do it once before pushing, and H0 must be preserved), and the old token file NAME appearing as text in docs/existing-bot-audit.md and STATE.md
