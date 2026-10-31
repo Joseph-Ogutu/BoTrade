@@ -1,0 +1,198 @@
+{
+  "_evidence": {
+    "captured_at_utc": "2026-10-31T23:00:12Z",
+    "provenance": "recorded by run_gate1_control.py (UTC clock); simulated data only",
+    "request": {
+      "registration_amendments": [
+        1,
+        2,
+        3
+      ],
+      "seed": 20261031
+    }
+  },
+  "all_passed": true,
+  "negative": {
+    "no_gaps": {
+      "band": [
+        0.0293,
+        0.0707
+      ],
+      "family_any_holm_rejection": 0.051,
+      "family_limit": 0.0707,
+      "gaps": false,
+      "length": 50000,
+      "pass": true,
+      "per_test": {
+        "autocorrelation_portmanteau_10": {
+          "fpr_symbol_a": 0.053,
+          "fpr_symbol_b_reported_only": 0.057,
+          "ks_critical_0.01": 0.05148,
+          "ks_d": 0.02352,
+          "pass": true
+        },
+        "pair_independence_chi2": {
+          "fpr_symbol_a": 0.044,
+          "fpr_symbol_b_reported_only": 0.046,
+          "ks_critical_0.01": 0.05148,
+          "ks_d": 0.01714,
+          "pass": true
+        },
+        "parity_runs": {
+          "fpr_symbol_a": 0.056,
+          "fpr_symbol_b_reported_only": 0.051,
+          "ks_critical_0.01": 0.05148,
+          "ks_d": 0.02161,
+          "pass": true
+        },
+        "uniformity_chi2": {
+          "fpr_symbol_a": 0.046,
+          "fpr_symbol_b_reported_only": 0.047,
+          "ks_critical_0.01": 0.05148,
+          "ks_d": 0.03234,
+          "pass": true
+        }
+      },
+      "reps": 1000
+    },
+    "random_gaps": {
+      "band": [
+        0.0293,
+        0.0707
+      ],
+      "family_any_holm_rejection": 0.059,
+      "family_limit": 0.0707,
+      "gaps": true,
+      "length": 50000,
+      "pass": true,
+      "per_test": {
+        "autocorrelation_portmanteau_10": {
+          "fpr_symbol_a": 0.052,
+          "fpr_symbol_b_reported_only": 0.064,
+          "ks_critical_0.01": 0.05148,
+          "ks_d": 0.02216,
+          "pass": true
+        },
+        "pair_independence_chi2": {
+          "fpr_symbol_a": 0.052,
+          "fpr_symbol_b_reported_only": 0.046,
+          "ks_critical_0.01": 0.05148,
+          "ks_d": 0.01948,
+          "pass": true
+        },
+        "parity_runs": {
+          "fpr_symbol_a": 0.053,
+          "fpr_symbol_b_reported_only": 0.057,
+          "ks_critical_0.01": 0.05148,
+          "ks_d": 0.01754,
+          "pass": true
+        },
+        "uniformity_chi2": {
+          "fpr_symbol_a": 0.048,
+          "fpr_symbol_b_reported_only": 0.055,
+          "ks_critical_0.01": 0.05148,
+          "ks_d": 0.01368,
+          "pass": true
+        }
+      },
+      "reps": 1000
+    }
+  },
+  "positive": {
+    "digit7_bias": {
+      "detection_rate": {
+        "uniformity_chi2": 1.0
+      },
+      "length": 100000,
+      "pass": true,
+      "reps": 200,
+      "required": 0.95
+    },
+    "digit_repeat": {
+      "detection_rate": {
+        "autocorrelation_portmanteau_10": 1.0,
+        "pair_independence_chi2": 1.0
+      },
+      "length": 100000,
+      "pass": true,
+      "reps": 200,
+      "required": 0.95
+    },
+    "parity_bias": {
+      "detection_rate": {
+        "uniformity_chi2": 1.0
+      },
+      "length": 100000,
+      "pass": true,
+      "reps": 200,
+      "required": 0.95
+    },
+    "parity_persistence": {
+      "detection_rate": {
+        "parity_runs": 1.0
+      },
+      "length": 100000,
+      "pass": true,
+      "reps": 200,
+      "required": 0.95
+    }
+  },
+  "seconds": 223.8,
+  "seed": 20261031,
+  "validity": {
+    "no_gaps": {
+      "band": [
+        0.0038,
+        0.0962
+      ],
+      "gaps": false,
+      "length": 100000,
+      "pass": true,
+      "per_test": {
+        "autocorrelation_portmanteau_10": {
+          "pass": true,
+          "rate": 0.05
+        },
+        "pair_independence_chi2": {
+          "pass": true,
+          "rate": 0.045
+        },
+        "parity_runs": {
+          "pass": true,
+          "rate": 0.04
+        },
+        "uniformity_chi2": {
+          "pass": true,
+          "rate": 0.05
+        }
+      }
+    },
+    "random_gaps": {
+      "band": [
+        0.0038,
+        0.0962
+      ],
+      "gaps": true,
+      "length": 100000,
+      "pass": true,
+      "per_test": {
+        "autocorrelation_portmanteau_10": {
+          "pass": true,
+          "rate": 0.065
+        },
+        "pair_independence_chi2": {
+          "pass": true,
+          "rate": 0.045
+        },
+        "parity_runs": {
+          "pass": true,
+          "rate": 0.065
+        },
+        "uniformity_chi2": {
+          "pass": true,
+          "rate": 0.065
+        }
+      }
+    }
+  }
+}

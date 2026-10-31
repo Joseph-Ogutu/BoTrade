@@ -19,7 +19,7 @@ Owner sign-off record (HANDBOOK 13). All times UTC. Values here are cross-checks
 | Confirmatory family | 8 tests, Holm at 0.05 |
 | Exploratory family | 24 tests, Holm at 0.05, never decisive |
 | Harness commit (frozen) | NOT YET. Must be recorded here before 2026-11-14T00:00:00Z after the control experiment passes |
-| Control experiment | NOT YET RUN |
+| Control experiment | RUN 2026-10-31T23:00:12Z on simulated data only, seed 20261031, all checks passed: docs/evidence/gate1_control_20261031T230012Z.json. The harness is NOT yet frozen |
 | Run date | 2026-11-15, run once |
 | Result | NOT RUN |
 | Owner sign-off | |
