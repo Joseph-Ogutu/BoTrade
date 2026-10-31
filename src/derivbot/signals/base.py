@@ -71,6 +71,12 @@ class TickWindow:
         v.flags.writeable = False
         return v
 
+    def back(self, k: int) -> "TickWindow":
+        """The same causal view as it was k ticks ago (still only ticks that exist now). Used to re-evaluate past decisions."""
+        if k < 0 or self._t - k < 0:
+            raise ValueError("back(k) needs 0 <= k <= t")
+        return TickWindow(self._q, self._d, self._e, self._t - k)
+
     def peek(self, k: int = 1):
         raise LookaheadError("a strategy may not look at future ticks")
 

@@ -68,3 +68,18 @@ def test_no_backtest_module_reads_the_tick_store_except_through_the_permit():
         assert "sqlite3" not in text and "FROM ticks" not in text, p.name
     for p in (ROOT / "src" / "derivbot" / "signals").glob("*.py"):
         assert "sqlite3" not in p.read_text() and "FROM ticks" not in p.read_text()
+
+
+def test_run_backtest_script_refuses_real_data_and_runs_simulated(capsys, tmp_path):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("run_backtest", ROOT / "scripts" / "run_backtest.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    missing = tmp_path / "must_not_be_opened.sqlite"
+    assert mod.main(["--strategy", "ema_trend", "--real-db", str(missing)]) == 3
+    out = capsys.readouterr().out
+    assert "REFUSED" in out and not missing.exists()
+    assert mod.main(["--strategy", "ema_trend"]) == 2
+    assert mod.main(["--strategy", "vol_breakout", "--simulated", "--ticks", "3000", "--seed", "4"]) == 0
+    assert "SIMULATED" in capsys.readouterr().out
