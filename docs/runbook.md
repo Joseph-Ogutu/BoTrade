@@ -85,7 +85,7 @@ docker compose up -d --build
 
 - `data/` must be owned by the same uid the container runs as. The image uses uid `1000` by default. If `id -u` for `deploy` is not 1000, build with `APP_UID=$(id -u) docker compose up -d --build`.
 - No `.env` file is needed or read. Do not create one for the collector.
-- Pin the base image (one-time, then commit): `docker pull python:3.12-slim && docker inspect --format '{{index .RepoDigests 0}}' python:3.12-slim`, then put that `python@sha256:...` in the `FROM` line of `Dockerfile.collector`. Not done yet. UNVERIFIED.
+- Pin the base image (one-time, then commit): `docker pull python:3.12-slim && docker inspect --format '{{index .RepoDigests 0}}' python:3.12-slim`, then put that `python@sha256:...` in the `FROM` line of `Dockerfile.collector`. Done in the repo on 2026-10-31 (the digest in `Dockerfile.collector` is the multi-arch index, so it builds on amd64 and arm64). To refresh it later, follow the comment in that file.
 - Build needs outbound access to Docker Hub and PyPI. On the dev machine one build attempt failed on IPv6 "network unreachable" and succeeded on retry; if it fails, retry before debugging.
 
 ## 7. Check health
@@ -199,7 +199,7 @@ Backups are compressed copies: the local 14 copies add roughly 14 times the comp
 | `deploy` user works, root login and passwords refused | | |
 | Docker installed | | |
 | Collector up and `healthy` | | |
-| Base image pinned by digest and committed | | |
+| Base image pinned by digest and committed | 2026-10-31, repo (Dockerfile.collector) | digest is the multi-arch index; rebuild verified on amd64 dev machine only |
 | 24 hour run: `ls -l data/ticks.sqlite` size recorded in section 9 | | |
 | rclone remote works | | |
 | Manual backup: `backup ok` in journal and file present off-host | | |
@@ -211,7 +211,7 @@ Backups are compressed copies: the local 14 copies add roughly 14 times the comp
 
 - Nothing here has been run on Oracle. The dev-machine tests prove the container and the backup tooling, not the VM.
 - Unhealthy containers are not restarted by Docker. There is no external alerting. Needed before relying on this: an external dead-man's-switch on the heartbeat (HANDBOOK 11.1) and an alert on `LAST_OFFHOST_OK` older than 26 hours. Not built.
-- The base image is not pinned by digest and pip installs are version-pinned but not hash-pinned.
+- pip installs are version-pinned but not hash-pinned. The base image is pinned by digest.
 - Time-of-day and weekends: forex, OTC indices and metals were closed when this was tested (Saturday 2026-10-31 at about 22:00Z. In Nairobi that was already Sunday 2026-11-01, 01:00). Their ticks have never been observed by this collector, so rates, tick formats and gap behaviour for them are UNVERIFIED.
 - Public endpoint behaviour could differ from the authenticated demo endpoint (HANDBOOK 2.1). Data collected here is public market data only.
 - Deriv's terms on automated collection of public data were not checked (api-notes item 10).
