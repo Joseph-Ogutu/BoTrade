@@ -2,7 +2,7 @@
 
 Status: partially answered from official docs. Nothing has been run against the API yet, so every item is marked by its evidence level:
 
-- DOCS: stated in official docs at the URL given, read on 2026-11-01 (by a fetch of the page, quotes are short and verbatim). Not yet confirmed by a live request.
+- DOCS: stated in official docs at the URL given, read on 2026-10-31 UTC, before 21:39Z, exact time not recorded (by a fetch of the page, quotes are short and verbatim). Not yet confirmed by a live request.
 - NOT FOUND: the docs pages read do not say. Still UNVERIFIED.
 - NEEDS DEMO: needs a live request with the owner's demo PAT.
 
@@ -27,7 +27,7 @@ Also from HANDBOOK 4.2: Deriv's own description of how synthetic indices are gen
 
 ## Findings
 
-### 3. buy and duplicate protection (DOCS, 2026-11-01)
+### 3. buy and duplicate protection (DOCS, read 2026-10-31 UTC)
 
 Sources: https://developers.deriv.com/schemas/buy_request.schema.json and https://developers.deriv.com/docs/best-practices/
 
@@ -92,7 +92,7 @@ Source: https://developers.deriv.com/docs/options/reset-demo-balance/
 - Limits page: Deriv reserves the right to change limits and invites contact about application-specific limits.
 - Owner action: check Deriv's terms and ask support, in writing, whether automated trading via PAT is allowed for the account type and Kenya.
 
-## Schema findings (official deriv-api-schemas, vendored in schemas/deriv, 2026-11-01)
+## Schema findings (official deriv-api-schemas, vendored in schemas/deriv, downloaded 2026-10-31T21:50Z)
 
 Source and checksum: schemas/deriv/SOURCE.md. These are the published JSON schemas, not live responses. Live confirmation on DEMO is still needed.
 
@@ -107,14 +107,14 @@ Source and checksum: schemas/deriv/SOURCE.md. These are the published JSON schem
 - ws_public request: "No authentication, OTP, or query parameters are required."
 - OpenAPI file lists REST paths including `/trading/v1/options/accounts`, `.../accounts/{accountId}/otp`, `.../accounts/{account_id}/reset-demo-balance` and `bulk-purchase`. The bot must allow-list REST paths and never call reset-demo-balance, bulk-purchase, or anything outside accounts and otp.
 
-## Live check: public endpoint (2026-11-01, no credentials)
+## Live check: public endpoint (2026-10-31, about 21:57Z to 21:59Z, no credentials)
 
 - `wss://api.derivws.com/trading/v1/options/ws/public` accepted a connection with no token, no OTP and no App ID, and streamed ticks for `1HZ100V` and `R_100` subscribed on one connection.
 - Cadence: `1HZ100V` about 1 tick per second, `R_100` about 1 tick per 2 seconds. Epochs were contiguous with no gaps in two runs of about 15 to 25 seconds each (24 and 23 ticks). pip_size was 2 for both in the fake only; the live value was not recorded here.
 - Connection setup took about 6 seconds in one run (DNS/TLS). Do not assume instant connects.
 - Tooling finding: the `websockets` library logs the full request URL, including `?otp=...`, at DEBUG. `derivbot.common.logs.quiet_transport_loggers()` caps those loggers and is covered by a test. Any process that uses OTP URLs must call `setup_logging()`.
 
-## Public endpoint probes (2026-11-01, no credentials)
+## Public endpoint probes (2026-10-31, captured 22:00:51Z to 22:17Z, no credentials)
 
 Raw responses are committed in docs/evidence/. Probe scripts: scripts/probe_public.py, scripts/probe_public_batch.py. All requests were read-only (market data and proposal quotes). No buy/sell was sent. The public endpoint is `wss://api.derivws.com/trading/v1/options/ws/public`. Everything here is the PUBLIC view; the DEMO account may differ. UNVERIFIED for demo.
 
@@ -132,7 +132,7 @@ A first version of the batch probe matched replies by arrival order, not `req_id
 | commodities | 4 | yes (metals) |
 | cryptocurrency | 2 (BTC/USD, ETH/USD) | yes |
 
-At query time (Saturday evening GMT) forex, OTC indices, metals and the baskets showed `exchange_is_open: 0`; crypto and the synthetic indices were open. No symbol was suspended.
+At query time (2026-10-31T22:00:51Z: a Saturday in UTC, Sunday 2026-11-01 01:00 in Nairobi) forex, OTC indices, metals and the baskets showed `exchange_is_open: 0`; crypto and the synthetic indices were open. No symbol was suspended.
 
 ### contracts_for (item 1, part)
 

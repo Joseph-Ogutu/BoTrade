@@ -32,7 +32,7 @@ class LimitConfig:
         return out
 
 
-# Published limits, read 2026-11-01 at https://developers.deriv.com/docs/limits/
+# Published limits, read 2026-10-31 (UTC) at https://developers.deriv.com/docs/limits/
 DEFAULT_LIMITS: dict[str, LimitConfig] = {
     "trading": LimitConfig(per_minute=360, per_hour=14_400),
     "account": LimitConfig(per_minute=100, per_hour=2_000),

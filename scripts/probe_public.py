@@ -12,6 +12,8 @@ from pathlib import Path
 import websockets
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from derivbot.common.evidence import stamp_file  # noqa: E402
+from derivbot.common.timeutil import utc_now_iso  # noqa: E402
 from derivbot.deriv.public_stream import PUBLIC_WS_URL  # noqa: E402
 
 
@@ -24,9 +26,12 @@ async def main() -> int:
     async with websockets.connect(PUBLIC_WS_URL, open_timeout=20) as ws:
         await ws.send(json.dumps(req))
         resp = json.loads(await asyncio.wait_for(ws.recv(), 20))
+        captured = utc_now_iso()
     text = json.dumps(resp, indent=2, sort_keys=True)
     if len(sys.argv) > 2:
         Path(sys.argv[2]).write_text(text + "\n")
+        stamp_file(sys.argv[2], captured_at_utc=captured, provenance="recorded by probe_public.py at capture (UTC clock)",
+                   request=req)
     print(text[:1500])
     return 0
 

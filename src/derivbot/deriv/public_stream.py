@@ -6,7 +6,7 @@ Public endpoint: wss://api.derivws.com/trading/v1/options/ws/public
 Behaviour:
 - reconnects with exponential backoff and full jitter, resubscribing every symbol each time;
 - a connection that is open but silent for `stale_after` seconds is treated as dead and reconnected;
-- a subscription error `MarketIsClosed` (OBSERVED live 2026-11-01, msg_type "ticks") defers only that symbol and
+- a subscription error `MarketIsClosed` (OBSERVED live 2026-10-31 (UTC), msg_type "ticks") defers only that symbol and
   retries it every `resubscribe_closed_after` seconds on the same connection; other errors reconnect with backoff;
 - URLs are redacted before logging.
 """
@@ -98,7 +98,7 @@ async def stream_ticks(
                         msg = parse_message(json.loads(raw))
                     except DerivApiError as exc:
                         sym = req_symbols.get(exc.req_id) if exc.req_id is not None else None
-                        # OBSERVED-ERR: MarketIsClosed with msg_type "ticks" on the public endpoint, 2026-11-01.
+                        # OBSERVED-ERR: MarketIsClosed with msg_type "ticks" on the public endpoint, 2026-10-31 (UTC).
                         # UNVERIFIED-ERR: whether the demo endpoint uses the same code for closed markets.
                         if exc.code == "MarketIsClosed" and exc.msg_type == "ticks" and sym:
                             if sym not in stats.closed_symbols:

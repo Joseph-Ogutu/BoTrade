@@ -2,9 +2,9 @@
 
 Scope: the tick collector only (docker-compose.yml, Dockerfile.collector). It uses the public Deriv endpoint, needs no token, no OTP, no App ID and no `.env`. Postgres, strategies, the executor and any authenticated flow are NOT part of this runbook.
 
-Status of this runbook: written and partly tested on a dev machine on 2026-11-01. Nothing below has been run on an Oracle VM yet. Every VM-specific step is UNVERIFIED until you have run it once and ticked it in section 10. Commands that Oracle may have changed (Always Free shapes, firewall defaults, console menus) must be checked against Oracle's current docs.
+Status of this runbook: written and partly tested on a dev machine on 2026-10-31 (UTC; 21:27Z to 22:21Z). Nothing below has been run on an Oracle VM yet. Every VM-specific step is UNVERIFIED until you have run it once and ticked it in section 10. Commands that Oracle may have changed (Always Free shapes, firewall defaults, console menus) must be checked against Oracle's current docs.
 
-What was tested for real (dev machine, Docker 29, 2026-11-01): image build, container start, healthy status, closed-market handling, automatic reconnect after a server-side disconnect, graceful stop (3 s, exit 0), data surviving stop and start, health failure paths, read-only root filesystem, backup, verify, restore and row-for-row comparison (section 8).
+What was tested for real (dev machine, Docker 29, 2026-10-31 UTC): image build, container start, healthy status, closed-market handling, automatic reconnect after a server-side disconnect, graceful stop (3 s, exit 0), data surviving stop and start, health failure paths, read-only root filesystem, backup, verify, restore and row-for-row comparison (section 8).
 
 ## 1. Decisions you must make first
 
@@ -170,7 +170,7 @@ Expected: the restored file has the same symbols and counts as the live file at 
 
 The restore command refuses to overwrite an existing file and verifies the checksum and `PRAGMA integrity_check` before writing anything.
 
-### 8.3 Dev-machine drill, real output (2026-11-01, local copy, not off-host)
+### 8.3 Dev-machine drill, real output (2026-10-31T22:18:28Z, local copy, not off-host)
 
 ```
 create:  created <tmp>/bk/ticks-20261031T221828Z.sqlite.gz rows={'1HZ100V': 180, 'R_100': 90, 'cryBTCUSD': 179, 'cryETHUSD': 179} pruned=0
@@ -212,7 +212,7 @@ Backups are compressed copies: the local 14 copies add roughly 14 times the comp
 - Nothing here has been run on Oracle. The dev-machine tests prove the container and the backup tooling, not the VM.
 - Unhealthy containers are not restarted by Docker. There is no external alerting. Needed before relying on this: an external dead-man's-switch on the heartbeat (HANDBOOK 11.1) and an alert on `LAST_OFFHOST_OK` older than 26 hours. Not built.
 - The base image is not pinned by digest and pip installs are version-pinned but not hash-pinned.
-- Time-of-day and weekends: forex, OTC indices and metals were closed when this was tested (Saturday evening GMT). Their ticks have never been observed by this collector, so rates, tick formats and gap behaviour for them are UNVERIFIED.
+- Time-of-day and weekends: forex, OTC indices and metals were closed when this was tested (Saturday 2026-10-31 at about 22:00Z. In Nairobi that was already Sunday 2026-11-01, 01:00). Their ticks have never been observed by this collector, so rates, tick formats and gap behaviour for them are UNVERIFIED.
 - Public endpoint behaviour could differ from the authenticated demo endpoint (HANDBOOK 2.1). Data collected here is public market data only.
 - Deriv's terms on automated collection of public data were not checked (api-notes item 10).
 - Restoring requires the container image or `PYTHONPATH=src python -m derivbot.collector.backup` from a checkout; a plain `gunzip` of the `.sqlite.gz` also yields a usable SQLite file if the tooling is unavailable.

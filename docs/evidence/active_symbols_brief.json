@@ -1,4 +1,13 @@
 {
+  "_evidence": {
+    "captured_at_utc": "2026-10-31T22:00:51Z",
+    "note": "Machine local zone is Africa/Nairobi (UTC+3): the same instant is 3 hours later on the local clock. Capture time is the file modification time; the probe scripts did not record time at capture.",
+    "provenance": "reconstructed from file modification time",
+    "request": {
+      "active_symbols": "brief",
+      "req_id": 1
+    }
+  },
   "active_symbols": [
     {
       "exchange_is_open": 1,

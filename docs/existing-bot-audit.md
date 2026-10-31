@@ -2,7 +2,7 @@
 
 Read-only audit of the Deriv digit-trading bot in this repository. Nothing was modified, the bot was not started, no real or demo account was contacted, and no environment or token file was opened. The only exception to "nothing modified" is this file.
 
-Audit date: 2026-11-01. Branch: master. HEAD: ddcb213.
+Audit date: 2026-10-31 (UTC; file last written 21:14:36Z, which was 2026-11-01 00:14 in Nairobi). Branch: master. HEAD: ddcb213.
 
 Conventions: UNVERIFIED marks anything that could not be confirmed from the code or from files on disk. All secrets are shown as [REDACTED] or omitted. Line numbers are per file.
 

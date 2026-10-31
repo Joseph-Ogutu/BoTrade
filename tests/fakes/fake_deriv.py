@@ -165,7 +165,7 @@ class FakeDeriv:
                 subscription={"id": _sid()})]
         if msg_type == "ticks":
             if req["ticks"] in self.closed_symbols:
-                # OBSERVED-ERR: code MarketIsClosed, msg_type ticks, seen live on the public endpoint 2026-11-01.
+                # OBSERVED-ERR: code MarketIsClosed, msg_type ticks, seen live on the public endpoint 2026-10-31 (UTC).
                 # Message text is paraphrased.
                 return [self._envelope(req, "ticks", error={
                     "code": "MarketIsClosed", "message": "This market is presently closed."})]

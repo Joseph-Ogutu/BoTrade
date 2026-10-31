@@ -24,3 +24,12 @@ Read STATE.md first, then this file, then the relevant part of docs/HANDBOOK.md 
 - Update STATE.md and commit after every completed task.
 - Write tests that target the failure modes from the audit (defeated breakers, buy timeout, disconnect during settlement), not only the happy path.
 - Use a fake Deriv server for adapter tests. Never point tests at a real endpoint.
+
+## Time convention (added after a labelling error)
+
+- Every recorded time is UTC ISO-8601 with a trailing Z, produced by `derivbot.common.timeutil` (never by formatting a local time). The dev machine runs on Africa/Nairobi (UTC+3), so the local date differs from the UTC date between 21:00Z and 24:00Z.
+- Do not trust `ls -l --time-style`, `date` without `-u`, or `git log --date=format:` for UTC: they print local or commit-offset times. Use `TZ=UTC git log --date=format-local:...`, `date -u`, or Python with an explicit UTC zone.
+- Evidence files carry an `_evidence` block (`captured_at_utc`, `provenance`). New probes must stamp it with `derivbot.common.evidence.stamp_file`.
+- Never write a weekday next to a date without computing it. tests/unit/test_evidence_hygiene.py checks this in the docs.
+- Holdout and "after commit" comparisons use Unix epoch seconds (`git log -1 --format=%ct`), never formatted local text.
+
