@@ -1,0 +1,177 @@
+import json
+from decimal import Decimal
+from pathlib import Path
+
+import pytest
+
+from derivbot.common import redaction
+from derivbot.config.risk import (
+    SET_BY_OWNER,
+    RiskConfig,
+    RiskConfigError,
+    StrategyApprovals,
+    config_hash,
+    load_risk_config,
+    load_strategy_approvals,
+)
+from derivbot.config.settings import Settings, SettingsError, load_settings, parse_env_file
+
+ROOT = Path(__file__).resolve().parents[2]
+
+VALID = {
+    "risk_per_trade_pct": "0.01", "max_stake_abs": "5", "min_stake_abs": None, "max_daily_loss_abs": "20",
+    "max_daily_loss_pct_of_start_balance": None, "max_consecutive_losses": 4, "max_open_positions": 1,
+    "max_trades_per_hour": 30, "max_proposal_price_slippage": "0.02", "stale_data_max_age_s": 10,
+    "min_net_payout_ratio": "0.80", "reconcile_max_age_s": 120, "recent_duplicate_window_s": 30,
+    "daily_reset_utc_hour": 0,
+}
+
+
+def write(tmp_path, data, name="risk.json"):
+    p = tmp_path / name
+    p.write_text(json.dumps(data))
+    return p
+
+
+# ---------------------------------------------------------------- risk config
+
+def test_the_committed_risk_file_fails_loudly_and_lists_every_unset_value():
+    with pytest.raises(RiskConfigError) as ei:
+        load_risk_config(ROOT / "config" / "risk.json")
+    msg = str(ei.value)
+    for name in ("risk_per_trade_pct", "max_stake_abs", "max_daily_loss_abs", "max_consecutive_losses",
+                 "max_open_positions", "max_trades_per_hour", "max_proposal_price_slippage",
+                 "stale_data_max_age_s", "min_net_payout_ratio", "reconcile_max_age_s",
+                 "recent_duplicate_window_s", "daily_reset_utc_hour"):
+        assert name in msg
+    assert SET_BY_OWNER in msg
+
+
+def test_valid_config_loads_with_decimal_money(tmp_path):
+    cfg = load_risk_config(write(tmp_path, VALID))
+    assert cfg.risk_per_trade_pct == Decimal("0.01") and isinstance(cfg.max_stake_abs, Decimal)
+    assert cfg.min_stake_abs is None
+
+
+def test_missing_key_none_and_placeholder_are_all_unset(tmp_path):
+    for bad in ({k: v for k, v in VALID.items() if k != "max_stake_abs"},
+                {**VALID, "max_stake_abs": None},
+                {**VALID, "max_stake_abs": SET_BY_OWNER}):
+        with pytest.raises(RiskConfigError, match="max_stake_abs"):
+            load_risk_config(write(tmp_path, bad))
+
+
+def test_at_least_one_daily_loss_limit_is_required_and_both_may_be_set(tmp_path):
+    neither = {**VALID, "max_daily_loss_abs": None, "max_daily_loss_pct_of_start_balance": None}
+    with pytest.raises(RiskConfigError, match="daily loss"):
+        load_risk_config(write(tmp_path, neither))
+    pct_only = {**VALID, "max_daily_loss_abs": None, "max_daily_loss_pct_of_start_balance": "0.05"}
+    assert load_risk_config(write(tmp_path, pct_only)).max_daily_loss_abs is None
+    both = {**VALID, "max_daily_loss_pct_of_start_balance": "0.05"}
+    assert load_risk_config(write(tmp_path, both)).max_daily_loss_pct_of_start_balance == Decimal("0.05")
+
+
+@pytest.mark.parametrize("field,value", [
+    ("risk_per_trade_pct", "0"), ("risk_per_trade_pct", "1.5"), ("risk_per_trade_pct", "-0.1"),
+    ("max_stake_abs", "0"), ("max_stake_abs", "-1"), ("max_daily_loss_abs", "0"),
+    ("max_consecutive_losses", 0), ("max_open_positions", 0), ("max_trades_per_hour", 0),
+    ("max_proposal_price_slippage", "-0.01"), ("stale_data_max_age_s", 0), ("min_net_payout_ratio", "0"),
+    ("daily_reset_utc_hour", 24), ("daily_reset_utc_hour", -1), ("max_stake_abs", "abc"),
+])
+def test_out_of_range_values_are_rejected(tmp_path, field, value):
+    with pytest.raises(RiskConfigError):
+        load_risk_config(write(tmp_path, {**VALID, field: value}))
+
+
+def test_min_stake_floor_may_not_exceed_max_stake(tmp_path):
+    with pytest.raises(RiskConfigError, match="min_stake_abs"):
+        load_risk_config(write(tmp_path, {**VALID, "min_stake_abs": "10", "max_stake_abs": "5"}))
+
+
+def test_unknown_keys_are_rejected_so_a_typo_cannot_silently_drop_a_limit(tmp_path):
+    with pytest.raises(RiskConfigError, match="max_stake_abss"):
+        load_risk_config(write(tmp_path, {**VALID, "max_stake_abss": "5"}))
+
+
+def test_floats_are_refused_for_money_values(tmp_path):
+    with pytest.raises(RiskConfigError, match="string"):
+        load_risk_config(write(tmp_path, {**VALID, "risk_per_trade_pct": 0.01}))
+
+
+def test_hash_is_stable_and_independent_of_key_order_and_decimal_spelling(tmp_path):
+    a = load_risk_config(write(tmp_path, VALID, "a.json"))
+    reordered = dict(reversed(list(VALID.items())))
+    b = load_risk_config(write(tmp_path, {**reordered, "max_stake_abs": "5.00", "risk_per_trade_pct": "0.0100"}, "b.json"))
+    assert config_hash(a) == config_hash(b) and len(config_hash(a)) == 64
+    c = load_risk_config(write(tmp_path, {**VALID, "max_stake_abs": "6"}, "c.json"))
+    assert config_hash(a) != config_hash(c)
+
+
+def test_strategy_approvals_default_to_none_approved():
+    assert load_strategy_approvals(ROOT / "config" / "strategies.json").approved == {}
+    ap = StrategyApprovals(approved={"ema_trend": "1"})
+    assert ap.is_approved("ema_trend", "1") and not ap.is_approved("ema_trend", "2") and not ap.is_approved("x", "1")
+
+
+# ---------------------------------------------------------------- settings
+
+ENV = {
+    "TRADING_MODE": "demo", "ALLOW_REAL_TRADING": "false", "DERIV_APP_ID_DEMO": "12345",
+    "DERIV_PAT_DEMO": "pat_FAKE_NOT_A_REAL_TOKEN_1234", "DERIV_ACCOUNT_ID_DEMO": "DEMO-ACC-1",
+    "DATABASE_URL": "postgresql+psycopg://bot:FAKEPASSWORD99@db/derivbot", "REDIS_URL": "redis://r:6379/0",
+    "TELEGRAM_BOT_TOKEN": "123456:FAKE-TELEGRAM-TOKEN-XYZ", "TELEGRAM_ALLOWED_CHAT_IDS": "111, 222",
+    "ADMIN_API_TOKEN": "FAKE-ADMIN-TOKEN-ABCDEF", "LOG_LEVEL": "INFO",
+}
+
+
+@pytest.fixture(autouse=True)
+def _clean_secrets():
+    redaction.reset_secrets()
+    yield
+    redaction.reset_secrets()
+
+
+def test_settings_parse_and_defaults():
+    s = load_settings(ENV)
+    assert s.trading_mode == "demo" and s.allow_real_trading is False
+    assert s.telegram_allowed_chat_ids == [111, 222]
+    assert s.deriv_app_id_demo == "12345"
+
+
+def test_secrets_never_appear_in_repr_str_or_dump():
+    s = load_settings(ENV)
+    for text in (repr(s), str(s), json.dumps(s.safe_dump())):
+        for secret in ("pat_FAKE_NOT_A_REAL_TOKEN_1234", "FAKEPASSWORD99", "FAKE-TELEGRAM-TOKEN-XYZ", "FAKE-ADMIN-TOKEN-ABCDEF"):
+            assert secret not in text
+
+
+def test_loading_settings_registers_secrets_with_the_log_redactor():
+    load_settings(ENV)
+    out = redaction.redact_text("using pat_FAKE_NOT_A_REAL_TOKEN_1234 and FAKE-ADMIN-TOKEN-ABCDEF")
+    assert "FAKE_NOT_A_REAL" not in out and "FAKE-ADMIN" not in out
+
+
+def test_missing_required_values_fail_loudly_and_list_all():
+    with pytest.raises(SettingsError) as ei:
+        load_settings({"TRADING_MODE": "demo"})
+    msg = str(ei.value)
+    assert "DATABASE_URL" in msg and "REDIS_URL" in msg
+
+
+def test_invalid_mode_and_bool_and_chat_ids_are_rejected():
+    for bad in ({**ENV, "TRADING_MODE": "paper"}, {**ENV, "ALLOW_REAL_TRADING": "maybe"},
+                {**ENV, "TELEGRAM_ALLOWED_CHAT_IDS": "abc"}, {**ENV, "LOG_LEVEL": "LOUD"}):
+        with pytest.raises(SettingsError):
+            load_settings(bad)
+
+
+def test_demo_credentials_are_optional_so_the_collector_and_tests_run_without_them():
+    env = {k: v for k, v in ENV.items() if not k.startswith("DERIV_") and k != "ADMIN_API_TOKEN"}
+    s = load_settings(env)
+    assert s.deriv_pat_demo is None and s.admin_api_token is None
+
+
+def test_env_file_parser_handles_comments_quotes_and_blank_lines(tmp_path):
+    p = tmp_path / "x.cfg"
+    p.write_text("# comment\n\nA=1\nB = 'two words'\nC=\"3\"\nBAD LINE\nD=\n")
+    assert parse_env_file(p) == {"A": "1", "B": "two words", "C": "3", "D": ""}

@@ -1,0 +1,16 @@
+{
+  "risk_per_trade_pct": "SET_BY_OWNER",
+  "max_stake_abs": "SET_BY_OWNER",
+  "min_stake_abs": null,
+  "max_daily_loss_abs": "SET_BY_OWNER",
+  "max_daily_loss_pct_of_start_balance": null,
+  "max_consecutive_losses": "SET_BY_OWNER",
+  "max_open_positions": "SET_BY_OWNER",
+  "max_trades_per_hour": "SET_BY_OWNER",
+  "max_proposal_price_slippage": "SET_BY_OWNER",
+  "stale_data_max_age_s": "SET_BY_OWNER",
+  "min_net_payout_ratio": "SET_BY_OWNER",
+  "reconcile_max_age_s": "SET_BY_OWNER",
+  "recent_duplicate_window_s": "SET_BY_OWNER",
+  "daily_reset_utc_hour": "SET_BY_OWNER"
+}
