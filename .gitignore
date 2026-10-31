@@ -1,0 +1,40 @@
+# Secrets: never commit
+.env
+.env.*
+!.env.example
+*.token
+*token*.txt
+*TOKEN*.txt
+*pat*.txt
+secrets/
+*.pem
+*.key
+
+# Data and local state
+*.db
+*.sqlite
+*.sqlite3
+data/
+logs/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Agent worktrees
+.claude/

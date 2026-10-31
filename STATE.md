@@ -1,0 +1,104 @@
+# STATE.md: Deriv Bot Revamp, session handoff
+
+Any agent starting a session reads this file FIRST, then CLAUDE.md, then the relevant part of docs/HANDBOOK.md.
+Update this file and commit after every completed task. If it is not in this file and in git, it did not happen.
+
+Last updated: 2026-11-01 (UTC) by: Claude Code session (repo scaffold)
+Git HEAD when updated: see `git log -1` (hash is recorded in the commit that follows the scaffold commit)
+
+## 1. Project in one paragraph
+
+Personal Deriv trading bot, rebuilt from scratch as a thin asyncio Python service. Demo only. Profitability is unproven and must pass the pre-registered edge test (HANDBOOK section 4) before anything else matters. The old bot is archived and is not to be reused without owner approval.
+
+## 2. Where we are
+
+Current phase: Phase 0 (API verification) and housekeeping
+Current gate: none passed yet
+
+Phase checklist (tick only when acceptance criteria in HANDBOOK section 13 are met and evidence is committed):
+
+- [ ] Housekeeping: old bot archived, new repo created, .gitignore covers env and token files, no token file inside the repo
+  - done: new repo created at ~/Desktop/deriv-bot-revamp, .gitignore covers env and token files, no token file inside it
+  - not done: old bot not yet archived (owner action), token file still sits in the old repo root (see section 5)
+- [ ] Phase 0: docs/api-notes.md answers all ten items in HANDBOOK section 3
+- [ ] Phase 3: Deriv adapter, smoke test passes on DEMO, fake Deriv server tests pass
+- [ ] Phase 4: collector running, gap report, candle rebuild test
+- [ ] Gate 1 prep: docs/kill-criterion.md committed BEFORE any strategy test, power calculation done
+- [ ] Gate 1: edge test on locked holdout, control experiment passed
+- [ ] Phase 5 and 6: strategies and backtests
+- [ ] Phase 7: risk engine, kill switch, state machine, reconciler
+- [ ] Phase 8: demo execution
+- [ ] Gate 2: demo matches backtest
+- [ ] Phase 9: Oracle deployment
+- [ ] Phase 10: independent evaluation
+- [ ] Gate 3: live readiness (owner only)
+
+## 3. Done so far (append, newest first)
+
+- 2026-11-01: new repo scaffolded (.gitignore, CLAUDE.md, STATE.md, Makefile, .env.example, docs/api-notes.md skeleton), evidence: first commit in this repo
+- 2026-11-01: read-only audit of the old bot, evidence: docs/existing-bot-audit.md
+
+## 4. In progress
+
+- Phase 0 API verification, branch: main, blocker: docs/HANDBOOK.md not supplied, so the ten items in section 3 are unknown
+
+## 5. Next actions (ordered)
+
+1. Owner: supply docs/HANDBOOK.md (STATE.md and CLAUDE.md cite sections 3, 4 and 13).
+2. Owner: move the token file out of the old repo root to a path outside any repo (for example ~/.config/deriv-bot/token, chmod 600), then set DERIV_TOKEN_FILE. Confirm what kind of token the file holds (Deriv API token or a GitHub personal access token); it has not been opened.
+3. Owner: archive the old bot (do not commit it; its token file is not git-ignored).
+4. Complete docs/api-notes.md using official docs and one recorded demo authorize response (secrets redacted).
+5. Phase 3: write the fake Deriv server and adapter tests first, then the adapter, with a demo-account check that fails closed.
+
+## 6. Decisions made by the owner
+
+- Build from scratch, no open-source framework (NautilusTrader, Freqtrade, LEAN, Hummingbot rejected).
+- Demo mode only. Real trading stays disabled.
+- Hosting: Oracle Cloud VM (free trial, stay within Always Free limits where possible).
+- Funding is manual through Deriv's cashier. The bot never moves money.
+- Instruments: OPEN, not yet decided.
+- Maximum acceptable loss if ever live: OPEN.
+- Telegram chat IDs allowed to control the bot: OPEN.
+
+## 7. Open questions for the owner
+
+1. Which instruments, based on what active_symbols and contracts_for return for this account?
+2. Telegram chat ID(s)?
+3. Does the old bot still run on the VPS? Which account type does its token belong to?
+4. Does the VPS Postgres hold any real trade history from the old bot?
+5. Where is docs/HANDBOOK.md?
+6. Is the new API credential a legacy token (authorize message) or an OTP/REST credential?
+
+## 8. Facts about the old bot (from the read-only audit, docs/existing-bot-audit.md)
+
+- No trade history in the dev database: 1,160 ticks (R_100, 2026-04-04 to 2026-04-07), zero trades.
+- backtest_results.json looks synthetic or stale. No evidentiary weight.
+- Working tree and HEAD are different bots. HEAD used an LLM strategy. Working tree is rule-based and data-collection-first.
+- Risk controls defeated by code (found by reading, not run): loss pause cleared by the Redis watcher within about a second, drawdown peak overwritten on every balance update, Docker restarts after a halt.
+- Stake sizing bugs: Kelly fed gross payout where net is expected, recomputed stake never used for buy.
+- No demo/real switch and no account ID check.
+- Token file in the old repo root is not git-ignored. Never commit the old tree.
+- Old test suite: 297 passed, but it does not catch the defects above. Do not treat it as safety evidence.
+- Unverified: runtime behaviour of the defeated controls, buy-timeout edge cases, VPS Postgres contents, whether real mode was ever used.
+
+## 9. UNVERIFIED items carried forward
+
+- OTP single-use and lifetime
+- Whether buy has an idempotency key
+- Contract types, durations, and real payout ratios for this account
+- ticks_history count limits
+- Legacy endpoint deprecation date
+- Licences of Freqtrade, LEAN, Hummingbot
+- Whether automated trading is permitted for the owner's account type
+
+## 10. How to resume (fresh session checklist)
+
+1. Read this file, CLAUDE.md, then docs/HANDBOOK.md sections relevant to the current phase.
+2. Run `git log --oneline -20` and `git status`. Compare against section 3.
+3. Run `make test`. Report the real result.
+4. Pick the first item in section 5. Do not skip phases or gates.
+5. Before ending a session: update sections 2 to 5, commit, and write the commit hash at the top.
+
+## 11. Rules that never change
+
+See CLAUDE.md. Demo only, no secrets in logs or git, every trade risk-validated, no blind buy retries, no martingale, no fabricated results, no em dashes in documents.
