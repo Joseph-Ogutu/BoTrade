@@ -29,7 +29,7 @@ Local infra for tests: `scripts/dev_up.sh` (Postgres 16 on 127.0.0.1:55432, Redi
 | 13 | Project skills in .claude/skills (needs .gitignore exception) | DONE | eight SKILL.md files (deriv-api, market-analysis, strategy-research, backtesting, risk-management, trading-execution, monitoring, security-audit) each with when to use, instructions, official doc links, validation commands and a worked example; every repo path they cite was checked to exist (except the two review briefs, item 14); .gitignore allows .claude/skills/ |
 | 14 | Review briefs: docs/review-risk-executor.md, docs/review-security.md | DONE | both written as briefs for an independent reviewer (scope, how to run, invariants to attack, known weak spots, deliverable). No review was performed by the author |
 
-Resume point: all 14 items done. Remaining: the final report to the owner, then owner actions (section 0b).
+Resume point: all 14 items done. Remaining: the final report to the owner and the owner actions listed in it.
 
 ## 1. Project in one paragraph
 
