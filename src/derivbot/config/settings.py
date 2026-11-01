@@ -63,7 +63,53 @@ def _bool(name: str, v: str) -> bool:
     raise SettingsError(f"{name}: {v!r} is not a boolean")
 
 
+# Secrets whose absence is safe because every consumer fails closed: no PAT means no Deriv session, no Telegram token
+# means alerts are only logged, no admin token means the admin API answers 503 to everything. A MISSING file for one of
+# these is treated as "not provided". Every other *_FILE (database and Redis passwords) must exist.
+OPTIONAL_SECRETS = frozenset({"DERIV_PAT_DEMO", "DERIV_PAT_REAL", "TELEGRAM_BOT_TOKEN", "ADMIN_API_TOKEN"})
+
+
+def resolve_file_secrets(env: Mapping[str, str]) -> dict[str, str]:
+    """Docker/Compose style: NAME_FILE=/run/secrets/x supplies NAME from a file. Setting both is an error, so a stale
+    value cannot silently win. An existing but empty file is an error, never an empty secret."""
+    out = dict(env)
+    for key in [k for k in env if k.endswith("_FILE") and env[k]]:
+        name = key[: -len("_FILE")]
+        if env.get(name):
+            raise SettingsError(f"both {name} and {key} are set")
+        try:
+            value = Path(env[key]).read_text().strip()
+        except FileNotFoundError:
+            if name in OPTIONAL_SECRETS:
+                continue
+            raise SettingsError(f"{key}: the file does not exist") from None
+        except OSError as exc:
+            raise SettingsError(f"{key}: cannot read the file ({type(exc).__name__})") from None
+        if not value:
+            raise SettingsError(f"{key}: the file is empty")
+        out[name] = value
+    return out
+
+
+def assemble_urls(env: dict[str, str]) -> dict[str, str]:
+    """Build DATABASE_URL and REDIS_URL from parts when they are not given whole, URL-quoting the passwords."""
+    from urllib.parse import quote
+
+    out = dict(env)
+    if not out.get("DATABASE_URL") and out.get("POSTGRES_HOST"):
+        pw = quote(out.get("POSTGRES_PASSWORD", ""), safe="")
+        out["DATABASE_URL"] = (f"postgresql+psycopg://{out.get('POSTGRES_USER', 'bot')}:{pw}@{out['POSTGRES_HOST']}:"
+                               f"{out.get('POSTGRES_PORT', '5432')}/{out.get('POSTGRES_DB', 'derivbot')}")
+    if not out.get("REDIS_URL") and out.get("REDIS_HOST"):
+        pw = quote(out.get("REDIS_PASSWORD", ""), safe="")
+        auth = f":{pw}@" if pw else ""
+        out["REDIS_URL"] = f"redis://{auth}{out['REDIS_HOST']}:{out.get('REDIS_PORT', '6379')}/0"
+    return out
+
+
 def load_settings(env: Mapping[str, str]) -> Settings:
+    env = assemble_urls(resolve_file_secrets(env))
+
     def opt(name: str) -> str | None:
         v = env.get(name)
         return v if v not in (None, "") else None

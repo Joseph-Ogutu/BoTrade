@@ -175,3 +175,51 @@ def test_env_file_parser_handles_comments_quotes_and_blank_lines(tmp_path):
     p = tmp_path / "x.cfg"
     p.write_text("# comment\n\nA=1\nB = 'two words'\nC=\"3\"\nBAD LINE\nD=\n")
     assert parse_env_file(p) == {"A": "1", "B": "two words", "C": "3", "D": ""}
+
+
+# ---------------------------------------------------------------- docker secrets (NAME_FILE) and URL assembly
+
+def test_file_secrets_supply_values_and_are_registered_with_the_redactor(tmp_path):
+    f = tmp_path / "pat"
+    f.write_text("pat_FAKE_FROM_FILE_9999999\n")
+    s = load_settings({"DATABASE_URL": "postgresql+psycopg://u:p@h/d", "REDIS_URL": "redis://r/0", "DERIV_PAT_DEMO_FILE": str(f)})
+    assert s.deriv_pat_demo.get_secret_value() == "pat_FAKE_FROM_FILE_9999999"
+    assert "FROM_FILE" not in redaction.redact_text("x pat_FAKE_FROM_FILE_9999999 y")
+
+
+def test_file_secret_errors_are_loud_and_never_echo_values(tmp_path):
+    f = tmp_path / "s"
+    f.write_text("VALUE-123456")
+    base = {"DATABASE_URL": "postgresql+psycopg://u:p@h/d", "REDIS_URL": "redis://r/0"}
+    with pytest.raises(SettingsError, match="both ADMIN_API_TOKEN and ADMIN_API_TOKEN_FILE"):
+        load_settings({**base, "ADMIN_API_TOKEN": "x", "ADMIN_API_TOKEN_FILE": str(f)})
+    with pytest.raises(SettingsError, match="does not exist"):
+        load_settings({**base, "POSTGRES_PASSWORD_FILE": str(tmp_path / "missing")})
+    empty = tmp_path / "e"
+    empty.write_text("  \n")
+    with pytest.raises(SettingsError, match="empty"):
+        load_settings({**base, "ADMIN_API_TOKEN_FILE": str(empty)})
+
+
+def test_urls_are_assembled_from_parts_with_quoted_passwords(tmp_path):
+    pw = tmp_path / "pw"
+    pw.write_text("p@ss:w/rd#1\n")
+    rp = tmp_path / "rp"
+    rp.write_text("redis:pw\n")
+    s = load_settings({"POSTGRES_HOST": "postgres", "POSTGRES_USER": "bot", "POSTGRES_DB": "derivbot", "POSTGRES_PASSWORD_FILE": str(pw),
+                       "REDIS_HOST": "redis", "REDIS_PASSWORD_FILE": str(rp)})
+    assert s.database_url.get_secret_value() == "postgresql+psycopg://bot:p%40ss%3Aw%2Frd%231@postgres:5432/derivbot"
+    assert s.redis_url.get_secret_value() == "redis://:redis%3Apw@redis:6379/0"
+    assert "p%40ss" not in repr(s) and "redis%3Apw" not in repr(s)
+
+
+def test_a_whole_url_wins_over_parts():
+    s = load_settings({"DATABASE_URL": "postgresql+psycopg://a:b@whole/d", "POSTGRES_HOST": "parts", "REDIS_URL": "redis://r/0"})
+    assert "whole" in s.database_url.get_secret_value()
+
+
+def test_a_missing_optional_secret_file_means_not_provided_never_an_empty_secret(tmp_path):
+    base = {"DATABASE_URL": "postgresql+psycopg://u:p@h/d", "REDIS_URL": "redis://r/0"}
+    s = load_settings({**base, "ADMIN_API_TOKEN_FILE": str(tmp_path / "nope"), "DERIV_PAT_DEMO_FILE": str(tmp_path / "nope2"),
+                       "TELEGRAM_BOT_TOKEN_FILE": str(tmp_path / "nope3")})
+    assert s.admin_api_token is None and s.deriv_pat_demo is None and s.telegram_bot_token is None

@@ -7,9 +7,13 @@ config = context.config
 
 
 def _url() -> str:
-    url = os.environ.get("DATABASE_URL")
+    """DATABASE_URL, or the same assembly from POSTGRES_* and *_FILE that the application uses. Never a URL from a file in
+    the repository."""
+    from derivbot.config.settings import assemble_urls, resolve_file_secrets
+
+    url = assemble_urls(resolve_file_secrets(dict(os.environ))).get("DATABASE_URL")
     if not url:
-        raise RuntimeError("DATABASE_URL is not set. Migrations never take a URL from a file.")
+        raise RuntimeError("DATABASE_URL (or POSTGRES_HOST and friends) is not set")
     return url
 
 

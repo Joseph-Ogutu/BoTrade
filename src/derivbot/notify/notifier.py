@@ -42,6 +42,7 @@ class Notifier:
         if LEVELS[level] < self._min:
             return False
         body = f"[{PREFIX[level]}] {redact_text(text)}"[:MAX_LEN]
+        log.log({"info": logging.INFO, "warning": logging.WARNING, "critical": logging.CRITICAL}[level], "ALERT %s", body)
         key, now = (level, body), self._clock()
         if key in self._last and now - self._last[key] < self._window:
             self.suppressed += 1
@@ -62,6 +63,7 @@ class Notifier:
         """Informational message (heartbeat, daily report): not subject to the alert level filter or the dedupe window,
         but redacted and bounded like everything else."""
         body = redact_text(text)[:MAX_LEN]
+        log.info("BROADCAST %s", body)
         ok = True
         for chat in self._chats:
             try:

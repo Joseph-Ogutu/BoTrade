@@ -171,3 +171,11 @@ async def test_poller_ignores_malformed_updates_and_survives_transport_errors():
     await asyncio.sleep(0.15)
     halt.set()
     await asyncio.wait_for(task, 2)
+
+
+async def test_alerts_are_logged_even_when_no_chat_is_configured(caplog):
+    caplog.set_level("INFO")
+    n = Notifier(FakeTransport(), [], min_level="info")
+    await n.alert("critical", "something broke wss://x/ws/demo?otp=SECRETOTP123456")
+    assert any("ALERT [CRITICAL] something broke" in r.getMessage() for r in caplog.records)
+    assert "SECRETOTP123456" not in caplog.text
