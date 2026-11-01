@@ -36,8 +36,10 @@ class RequestTimeout(Exception):
 
 class DerivSession:
     def __init__(self, url_provider: Callable[[], Awaitable[str]], limiter: RateLimiter | None = None,
-                 connect_timeout: float = 10.0) -> None:
+                 connect_timeout: float = 10.0, endpoint_classifier: Callable[[str], str | None] | None = None) -> None:
         self._url_provider = url_provider
+        self._classifier = endpoint_classifier
+        self.endpoint_mode: str | None = None       # set at connect from the URL; the URL itself is never exposed
         self._limiter = limiter
         self._connect_timeout = connect_timeout
         self._ws: Any = None
@@ -51,6 +53,7 @@ class DerivSession:
     # ------------------------------------------------------------------ lifecycle
     async def connect(self) -> None:
         url = await self._url_provider()                  # a fresh OTP URL for every connection
+        self.endpoint_mode = self._classifier(url) if self._classifier else None
         self._ws = await websockets.connect(url, open_timeout=self._connect_timeout, ping_interval=20, ping_timeout=20)
         self._closed.clear()
         self._reader = asyncio.create_task(self._read_loop(), name="deriv-session-reader")

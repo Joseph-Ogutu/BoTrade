@@ -113,6 +113,15 @@ class FakeDeriv:
         port = self._server.sockets[0].getsockname()[1]  # type: ignore[union-attr]
         return f"ws://127.0.0.1:{port}/trading/v1/options/ws/public"
 
+    def url_for(self, path: str = "/trading/v1/options/ws/demo", otp: str = "FAKEOTP0123456789") -> str:
+        """A URL shaped like the real demo/real OTP URL but pointing at this fake server (ws://127.0.0.1:port)."""
+        port = self._server.sockets[0].getsockname()[1]  # type: ignore[union-attr]
+        return f"ws://127.0.0.1:{port}{path}?otp={otp}"
+
+    @property
+    def port(self) -> int:
+        return self._server.sockets[0].getsockname()[1]  # type: ignore[union-attr]
+
     def inject(self, fault: Fault) -> None:
         self.faults.append(fault)
 
