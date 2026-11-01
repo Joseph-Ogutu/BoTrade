@@ -223,5 +223,5 @@ async def watch_flag_file(ks: KillSwitch, halt, interval_s: float = 1.0) -> None
         ks.sync()
         try:
             await asyncio.wait_for(halt.wait(), timeout=interval_s)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pass

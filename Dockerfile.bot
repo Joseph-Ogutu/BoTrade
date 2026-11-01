@@ -1,0 +1,25 @@
+# Trading service (demo only). Same base image digest as Dockerfile.collector; update both together.
+# One image runs three roles through the compose command: migrate (alembic), bot (derivbot.app), ops (derivbot.opsctl).
+FROM python:3.12-slim@sha256:aa943ce411423c7582288f18707ff66eddcbaeb510502d747a72aeb34f30d159
+
+ARG APP_UID=10001
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app/src
+
+RUN useradd --system --uid ${APP_UID} --no-create-home --shell /usr/sbin/nologin bot \
+ && mkdir /state && chown ${APP_UID} /state
+
+WORKDIR /app
+COPY requirements-bot.txt ./
+RUN pip install --no-cache-dir -r requirements-bot.txt
+
+COPY src ./src
+COPY config ./config
+COPY migrations ./migrations
+COPY alembic.ini ./
+COPY docs/approvals.md ./docs/approvals.md
+COPY docs/live-readiness.md ./docs/live-readiness.md
+
+USER bot
+CMD ["python", "-m", "derivbot.app"]

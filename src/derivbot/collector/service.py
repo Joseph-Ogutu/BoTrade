@@ -42,7 +42,7 @@ async def run_service(cfg: CollectorConfig, halt: asyncio.Event) -> int:
                     return
             try:
                 await asyncio.wait_for(halt.wait(), timeout=cfg.heartbeat_interval_s)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
 
     beat_task = asyncio.create_task(beat())

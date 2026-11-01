@@ -207,8 +207,6 @@ def test_a_causal_strategy_passes_the_prefix_invariance_check():
 # ------------------------------------------------------------------ metrics
 
 def trades_from(results):
-    pm = PayoutModel([Quote("DIGITEVEN", D("1"), D("1.95"))])
-    s = series_of([0] * (3 * len(results) + 5))
     out = []
     from derivbot.backtest.engine import Trade
     for i, w in enumerate(results):

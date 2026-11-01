@@ -3,7 +3,6 @@
 import asyncio
 import json
 import socket
-from pathlib import Path
 
 import httpx
 import pytest

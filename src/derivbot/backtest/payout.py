@@ -35,11 +35,11 @@ class PayoutModel:
         self.quotes, self.mode, self.shift = list(quotes), mode, shift
 
     @classmethod
-    def from_quotes(cls, quotes: list[Quote], mode: str = "worst") -> "PayoutModel":
+    def from_quotes(cls, quotes: list[Quote], mode: str = "worst") -> PayoutModel:
         return cls(quotes, mode)
 
     @classmethod
-    def from_evidence_batch(cls, path: str | Path, mode: str = "worst") -> "PayoutModel":
+    def from_evidence_batch(cls, path: str | Path, mode: str = "worst") -> PayoutModel:
         """Read proposal quotes (payouts only, no tick data) from a stamped probe-batch evidence file."""
         data = json.loads(Path(path).read_text())["responses"]
         quotes = []
@@ -57,7 +57,7 @@ class PayoutModel:
         base = min(q.r for q in qs) if self.mode == "worst" else min(qs, key=lambda q: abs(q.stake - stake)).r
         return base - self.shift
 
-    def shifted(self, delta: Decimal) -> "PayoutModel":
+    def shifted(self, delta: Decimal) -> PayoutModel:
         return PayoutModel(self.quotes, self.mode, self.shift + delta)
 
     def to_json(self) -> dict:

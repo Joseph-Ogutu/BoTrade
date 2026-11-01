@@ -38,7 +38,7 @@ TOLERANCE = Decimal("0.01")
 
 class Reconciler:
     def __init__(self, executor: Executor, interval_s: float = 60.0,
-                 clock: Callable[[], dt.datetime] = lambda: dt.datetime.now(dt.timezone.utc),
+                 clock: Callable[[], dt.datetime] = lambda: dt.datetime.now(dt.UTC),
                  stuck_buy_after_s: float = 15.0) -> None:
         if interval_s < MIN_INTERVAL_S:
             raise ValueError(f"reconcile interval must be at least {MIN_INTERVAL_S}s to respect the portfolio rate budget")
@@ -61,7 +61,7 @@ class Reconciler:
             try:
                 await asyncio.wait_for(halt.wait(), timeout=self.interval_s)
                 return
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
             try:
                 await self.run("periodic")
@@ -149,7 +149,7 @@ class Reconciler:
                 disc.append({"kind": "remote_open_missing_locally", "ref": cid,
                              "detail": {"symbol": c.underlying_symbol, "contract_type": c.contract_type,
                                         "buy_price": str(c.buy_price)}})
-        for cid, (iid, st, bp, po, pr) in local.items():
+        for cid, (iid, st, bp, _po, pr) in local.items():
             if st == State.OPEN.value:
                 if cid in remote_open:
                     rbp = remote_open[cid].buy_price

@@ -33,9 +33,9 @@ class TickFreshness:
     def __init__(self, symbols: list[str], clock: Callable[[], float] = time.time, kv=None) -> None:
         self.symbols, self._clock, self._kv = list(symbols), clock, kv
         self.last_seen: dict[str, float] = {}
-        self._sinks: list[Callable[[m.Tick], None]] = []
+        self._sinks: list[Callable[[m.Tick], object]] = []
 
-    def add_sink(self, fn: Callable[[m.Tick], None]) -> None:
+    def add_sink(self, fn: Callable[[m.Tick], object]) -> None:
         self._sinks.append(fn)
 
     def handle(self, raw: dict) -> None:
@@ -92,7 +92,7 @@ class SignalRunner:
             del self._q[0], self._d[0], self._e[0]
         window = TickWindow(np.asarray(self._q), np.asarray(self._d, dtype=np.int8), np.asarray(self._e, dtype=np.int64), len(self._q) - 1)
         out = []
-        for sid, strat in self._strategies.items():
+        for strat in self._strategies.values():
             sig = strat.signal(window)
             if sig is None:
                 continue

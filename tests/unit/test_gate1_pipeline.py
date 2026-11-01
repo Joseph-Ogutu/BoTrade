@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from derivbot.gate1 import pipeline as pl
 from derivbot.gate1.registration import load_registration

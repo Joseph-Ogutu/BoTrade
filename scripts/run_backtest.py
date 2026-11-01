@@ -7,7 +7,6 @@ without approval the real-data flags are refused. Payouts come from the stored p
 """
 import argparse
 import sys
-from decimal import Decimal
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]

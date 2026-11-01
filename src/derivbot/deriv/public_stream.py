@@ -87,7 +87,7 @@ async def stream_ticks(
                         await ws.send(json.dumps(req_ticks(sym, req_id=req_id)))
                     try:
                         raw = await asyncio.wait_for(ws.recv(), timeout=min(stale_after, 0.5))
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         if asyncio.get_running_loop().time() - last_msg > stale_after:
                             stats.stalls += 1
                             log.warning("no message for %.1fs, reconnecting", stale_after)
@@ -97,14 +97,14 @@ async def stream_ticks(
                     try:
                         msg = parse_message(json.loads(raw))
                     except DerivApiError as exc:
-                        sym = req_symbols.get(exc.req_id) if exc.req_id is not None else None
+                        err_sym = req_symbols.get(exc.req_id) if exc.req_id is not None else None
                         # OBSERVED-ERR: MarketIsClosed with msg_type "ticks" on the public endpoint, 2026-10-31 (UTC).
                         # UNVERIFIED-ERR: whether the demo endpoint uses the same code for closed markets.
-                        if exc.code == "MarketIsClosed" and exc.msg_type == "ticks" and sym:
-                            if sym not in stats.closed_symbols:
-                                log.info("%s: market closed, retrying every %.0fs", sym, resubscribe_closed_after)
-                            stats.closed_symbols.add(sym)
-                            due[sym] = loop.time() + resubscribe_closed_after
+                        if exc.code == "MarketIsClosed" and exc.msg_type == "ticks" and err_sym:
+                            if err_sym not in stats.closed_symbols:
+                                log.info("%s: market closed, retrying every %.0fs", err_sym, resubscribe_closed_after)
+                            stats.closed_symbols.add(err_sym)
+                            due[err_sym] = loop.time() + resubscribe_closed_after
                             continue
                         stats.errors += 1
                         log.warning("server error, reconnecting: %s", redact_text(str(exc)))
@@ -118,7 +118,7 @@ async def stream_ticks(
                         stats.ticks += 1
                         stats.closed_symbols.discard(msg.tick.symbol)
                         yield msg.tick
-        except (websockets.WebSocketException, OSError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, websockets.WebSocketException, OSError) as exc:
             stats.errors += 1
             log.warning("connection problem for %s: %s", safe_url, redact_text(f"{type(exc).__name__}: {exc}"))
 
@@ -128,5 +128,5 @@ async def stream_ticks(
         attempt += 1
         try:
             await asyncio.wait_for(halt.wait(), timeout=delay)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pass

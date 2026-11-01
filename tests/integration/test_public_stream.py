@@ -1,11 +1,10 @@
 import asyncio
 import logging
 
-from derivbot.common.logs import quiet_transport_loggers
-from derivbot.common.redaction import RedactingFilter
-
 from derivbot.collector.collector import run_collector
 from derivbot.collector.store import SqliteTickStore
+from derivbot.common.logs import quiet_transport_loggers
+from derivbot.common.redaction import RedactingFilter
 from derivbot.deriv.public_stream import StreamStats, stream_ticks
 from tests.fakes.fake_deriv import FakeDeriv
 

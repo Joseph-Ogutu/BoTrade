@@ -3,7 +3,12 @@
 .env
 .env.*
 data
-docs
+docs/*
+!docs/approvals.md
+!docs/live-readiness.md
+secrets
+dev-local
+REAL_TRADING_APPROVED
 tests
 scripts
 schemas

@@ -87,7 +87,7 @@ class Notifier:
         while not halt.is_set():
             try:
                 level, text = await asyncio.wait_for(self._queue.get(), timeout=0.2)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
             try:
                 await self.alert(level, text)
@@ -133,5 +133,5 @@ class Heartbeater:
             await self.beat_once()
             try:
                 await asyncio.wait_for(halt.wait(), timeout=self.interval_s)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass

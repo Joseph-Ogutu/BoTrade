@@ -14,7 +14,7 @@ from decimal import Decimal
 
 from derivbot.deriv import messages as m
 from derivbot.deriv.errors import DerivApiError
-from derivbot.deriv.session import ConnectionLost, DerivSession, RequestTimeout
+from derivbot.deriv.session import ConnectionLost, DerivSession
 
 log = logging.getLogger(__name__)
 
@@ -81,5 +81,5 @@ class ContractTracker:
             return None
         try:
             return await asyncio.wait_for(asyncio.shield(fut), timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return None

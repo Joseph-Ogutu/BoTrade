@@ -1,11 +1,16 @@
 """Batch of read-only probes on the PUBLIC endpoint. No credentials. Saves docs/evidence/public_probe_batch.json."""
-import asyncio, json, sys
+import asyncio
+import json
+import sys
 from pathlib import Path
+
 import websockets
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from derivbot.common.evidence import stamp_file  # noqa: E402
 from derivbot.common.timeutil import iso_from_epoch, utc_now_iso  # noqa: E402
 from derivbot.deriv.public_stream import PUBLIC_WS_URL  # noqa: E402
+
 
 def prop(symbol, ctype, dur=5, unit="t", barrier=None, amount=1, **extra):
     r = {"proposal": 1, "amount": amount, "basis": "stake", "contract_type": ctype, "currency": "USD",
@@ -56,7 +61,7 @@ async def main():
             try:
                 msg, t1 = await asyncio.wait_for(futs[i], 45)
                 out[name], lat[name] = msg, round(t1 - t0, 2)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 out[name], lat[name] = {"TIMEOUT": True}, None
             await asyncio.sleep(0.15)
         rt.cancel()

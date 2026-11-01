@@ -43,7 +43,7 @@ class TelegramPoller:
             except TransportError:
                 try:
                     await asyncio.wait_for(halt.wait(), timeout=self._backoff)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass
             except Exception:  # noqa: BLE001
                 log.exception("telegram poller error")

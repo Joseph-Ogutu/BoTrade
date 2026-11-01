@@ -18,7 +18,7 @@ import sqlite3
 import sys
 import tempfile
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -45,7 +45,7 @@ def create_backup(db_path: str | Path, out_dir: str | Path, stamp: str | None = 
     if not db_path.exists():
         raise BackupError(f"source database not found: {db_path}")
     out_dir.mkdir(parents=True, exist_ok=True)
-    stamp = stamp or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = stamp or datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     final = out_dir / f"{db_path.stem}-{stamp}.sqlite.gz"
     with tempfile.TemporaryDirectory(dir=out_dir) as tmp:
         snap = Path(tmp) / "snapshot.sqlite"

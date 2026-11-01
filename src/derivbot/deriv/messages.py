@@ -21,7 +21,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from derivbot.deriv.errors import DerivApiError
 
-
 _ID_RE = re.compile(r"^[\w-]{32,128}$")  # pattern from the official buy and forget schemas
 
 

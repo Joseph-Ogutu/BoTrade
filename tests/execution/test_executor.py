@@ -279,9 +279,8 @@ async def test_a_matching_contract_already_attributed_to_another_order_is_not_re
 
 
 async def test_unresolved_buy_unknown_blocks_further_trading_through_the_open_positions_rule(env):
-    from derivbot.config.risk import parse_risk_config
+    from derivbot.config.risk import StrategyApprovals, parse_risk_config
     from derivbot.risk.engine import RiskEngine
-    from derivbot.config.risk import StrategyApprovals
     from tests.execution.conftest import EXEC_CFG
 
     env.deps.risk = RiskEngine(parse_risk_config({**EXEC_CFG, "max_open_positions": 1}), StrategyApprovals(approved={"ema_trend": "1"}))

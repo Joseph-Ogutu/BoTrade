@@ -3,8 +3,8 @@ import sys
 
 import pytest
 
-from derivbot.kv.store import MemoryStore
 from derivbot.killswitch.switch import KillSwitch, MemoryEventLog
+from derivbot.kv.store import MemoryStore
 
 ROOT = __import__("pathlib").Path(__file__).resolve().parents[2]
 

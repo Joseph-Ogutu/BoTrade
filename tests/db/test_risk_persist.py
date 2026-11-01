@@ -9,7 +9,7 @@ from derivbot.config.risk import StrategyApprovals, parse_risk_config
 from derivbot.db.config_store import store_config
 from derivbot.db.repo import DuplicateIntent, StaleState, create_intent, get_state, transition
 from derivbot.execution.state_machine import Event, IllegalTransition, State
-from derivbot.risk.engine import IntentRequest, RiskEngine
+from derivbot.risk.engine import RiskEngine
 from derivbot.risk.persist import record_decision
 from tests.unit.test_config import VALID
 from tests.unit.test_risk_engine import ctx

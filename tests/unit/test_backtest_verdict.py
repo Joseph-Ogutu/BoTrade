@@ -2,7 +2,6 @@
 
 from decimal import Decimal as D
 
-import numpy as np
 import pytest
 
 from derivbot.backtest.engine import run_backtest

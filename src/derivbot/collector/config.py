@@ -41,7 +41,7 @@ class CollectorConfig(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def _unique_symbols(self) -> "CollectorConfig":
+    def _unique_symbols(self) -> CollectorConfig:
         names = [s.symbol for s in self.symbols]
         if len(set(names)) != len(names):
             raise ValueError("duplicate symbols")

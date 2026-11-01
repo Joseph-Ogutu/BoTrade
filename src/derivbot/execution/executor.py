@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import datetime as dt
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import ROUND_DOWN, Decimal
 from typing import Any
@@ -74,7 +74,7 @@ class ExecutorDeps:
     last_reconcile_age: Callable[[], float | None]
     api_min_stake: Callable[[str], Decimal | None]        # UNVERIFIED for the demo account
     account_id: str
-    clock: Callable[[], dt.datetime] = lambda: dt.datetime.now(dt.timezone.utc)
+    clock: Callable[[], dt.datetime] = lambda: dt.datetime.now(dt.UTC)
     on_alert: Callable[[str, str], None] = lambda level, text: None
     configured_mode: str = "demo"
     request_timeout: float = 10.0
@@ -287,7 +287,7 @@ class Executor:
             return ExecutionResult(intent_id, State.OPEN, "open", buy.contract_id)
         try:
             return await asyncio.wait_for(asyncio.shield(task), settle_timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return ExecutionResult(intent_id, State.OPEN, "open: settlement not seen yet", buy.contract_id)
 
     # ------------------------------------------------------------------ settlement
@@ -343,7 +343,7 @@ class Executor:
         stake = Decimal(row.stake)
         lo, hi = stake * (1 - slip) - Decimal("0.01"), stake * (1 + slip) + Decimal("0.01")
         tol = self.d.clock_skew_tolerance_s
-        out = []
+        out: list[tuple[int, Decimal, Decimal, Decimal | None]] = []
         for c in snap.portfolio:
             if (c.underlying_symbol == row.symbol and c.contract_type == row.contract_type and c.contract_id is not None
                     and c.buy_price is not None and lo <= c.buy_price <= hi

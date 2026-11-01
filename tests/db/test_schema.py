@@ -133,9 +133,10 @@ def test_one_risk_decision_per_intent_and_config_hash_unique(conn):
 
 
 def test_downgrade_to_base_then_upgrade_again(pg_url):
+    from pathlib import Path
+
     from alembic import command
     from alembic.config import Config
-    from pathlib import Path
 
     cfg = Config(str(Path(__file__).resolve().parents[2] / "alembic.ini"))
     command.downgrade(cfg, "base")

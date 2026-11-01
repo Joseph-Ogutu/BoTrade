@@ -111,5 +111,5 @@ class OrderMachine:
         return sum(1 for _, _, to in self.history if to is S.BUY_SENT)
 
     @classmethod
-    def restore(cls, state: State, history: list[tuple[State, Event, State]] | None = None) -> "OrderMachine":
+    def restore(cls, state: State, history: list[tuple[State, Event, State]] | None = None) -> OrderMachine:
         return cls(state=state, history=list(history or []))

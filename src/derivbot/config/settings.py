@@ -71,7 +71,8 @@ OPTIONAL_SECRETS = frozenset({"DERIV_PAT_DEMO", "DERIV_PAT_REAL", "TELEGRAM_BOT_
 
 def resolve_file_secrets(env: Mapping[str, str]) -> dict[str, str]:
     """Docker/Compose style: NAME_FILE=/run/secrets/x supplies NAME from a file. Setting both is an error, so a stale
-    value cannot silently win. An existing but empty file is an error, never an empty secret."""
+    value cannot silently win. An empty file is "not provided" for the optional secrets (so a fresh checkout can ship empty
+    placeholders) and an error for every other secret."""
     out = dict(env)
     for key in [k for k in env if k.endswith("_FILE") and env[k]]:
         name = key[: -len("_FILE")]
@@ -86,6 +87,8 @@ def resolve_file_secrets(env: Mapping[str, str]) -> dict[str, str]:
         except OSError as exc:
             raise SettingsError(f"{key}: cannot read the file ({type(exc).__name__})") from None
         if not value:
+            if name in OPTIONAL_SECRETS:
+                continue
             raise SettingsError(f"{key}: the file is empty")
         out[name] = value
     return out

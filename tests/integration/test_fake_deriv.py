@@ -6,7 +6,7 @@ import json
 import pytest
 import websockets
 
-from tests.fakes.fake_deriv import Fault, FakeDeriv
+from tests.fakes.fake_deriv import FakeDeriv, Fault
 
 
 async def send_recv(ws, req, timeout=2.0):

@@ -1,6 +1,5 @@
 """Executor test environment: fresh Postgres database per test, real fake-Deriv server, in-memory Redis/kill switch."""
 
-import asyncio
 import secrets
 from dataclasses import dataclass, field
 from decimal import Decimal as D

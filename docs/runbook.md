@@ -216,3 +216,43 @@ Backups are compressed copies: the local 14 copies add roughly 14 times the comp
 - Public endpoint behaviour could differ from the authenticated demo endpoint (HANDBOOK 2.1). Data collected here is public market data only.
 - Deriv's terms on automated collection of public data were not checked (api-notes item 10).
 - Restoring requires the container image or `PYTHONPATH=src python -m derivbot.collector.backup` from a checkout; a plain `gunzip` of the `.sqlite.gz` also yields a usable SQLite file if the tooling is unavailable.
+
+## 12. Full stack (trading service, demo only). Written, built and config-checked locally; NOT deployed
+
+Nothing in this section has been run on the VM. Everything below was verified only on the development machine, as noted.
+
+### 12.1 What runs
+
+`docker-compose.yml` defines five services: `postgres` (16), `redis` (7, password, append-only), `migrate` (one shot, `alembic upgrade head`, exits 0), `collector` (public ticks, unchanged) and `bot` (`python -m derivbot.app`). Postgres and Redis sit on an internal network with no route out. No service publishes a port. The admin API listens on 127.0.0.1 inside the bot container only.
+
+`TRADING_MODE=demo` and `ALLOW_REAL_TRADING=false` are written into the compose file and are not read from any env file. Real trading is also locked in code and in the database, so editing the compose file cannot enable it.
+
+### 12.2 First start
+
+1. `bash scripts/init_secrets.sh` creates `./secrets/` (git-ignored): random Postgres, Redis and admin API passwords, and EMPTY files for the Deriv PAT and the Telegram token. It never prints a secret and never overwrites a file.
+2. Owner only: fill `config/risk.json` (every `SET_BY_OWNER` value). Until you do, the bot refuses to start and lists the unset names. Checked: the built image exits 1 with exactly that list.
+3. Owner only, when the demo credentials exist: paste the PAT into `secrets/deriv_pat_demo` and the bot token into `secrets/telegram_bot_token`, and put `DERIV_APP_ID_DEMO`, `DERIV_ACCOUNT_ID_DEMO` and `TELEGRAM_ALLOWED_CHAT_IDS` in the git-ignored `.env` that compose reads. An empty optional secret means "not provided": no Deriv session, alerts only logged.
+4. `docker compose build` then `docker compose up -d`. Order is enforced: postgres and redis healthy, then migrate completes, then bot.
+
+### 12.3 Operating
+
+- Status, kill, release: `scripts/opsctl.sh status`, `scripts/opsctl.sh kill "reason"`, `scripts/opsctl.sh release "reason"`. These run inside the bot container against the loopback API; the token comes from the mounted secret.
+- Kill state lives in four places (memory, flag file on the `botstate` volume, Redis, Postgres). Any one saying engaged wins. A restart does not release it.
+- Healthchecks: postgres `pg_isready`, redis `PING`, bot `python -m derivbot.healthcheck_bot` (admin API answers and the Redis heartbeat is under 60 s old), collector as before.
+
+### 12.4 Postgres backup and restore
+
+- `scripts/pg_backup.sh` runs `pg_dump --format=custom` inside the container over its local socket (no password handled), checks the archive with `pg_restore --list`, writes a sha256, keeps the newest `KEEP_LOCAL` (14), and if `OFFHOST_REMOTE` is set copies with rclone and runs `rclone check`.
+- `scripts/pg_restore_drill.sh <dump>` restores into a scratch database, compares every table's row count with the source, checks the audit triggers survived, and drops the scratch database. Exit 0 only if all match.
+- Verified on the dev machine (dev Postgres container, migrated database with one audit row): backup ok, drill OK with identical counts, and a truncated dump makes the drill exit 1. NOT verified: the off-host copy (needs rclone and a remote), the drill on the VM, and timer scheduling for `pg_backup.sh` (the existing systemd timer covers only the SQLite collector backup).
+- Do the drill once from the OFF-HOST copy before you rely on any of this.
+
+### 12.5 Continuous integration
+
+`.github/workflows/ci.yml` runs ruff, mypy, the test suite against Postgres and Redis service containers with a 100% line and branch gate on `risk/rules.py` and `risk/stake.py`, pip-audit, the whole-history secret scan and `docker compose config`. `make check` runs the same list locally. The workflow has not run on GitHub (nothing is pushed). `.pre-commit-config.yaml` runs ruff, mypy and the secret scan locally.
+
+### 12.6 Known gaps in the stack
+
+- The bot passes `api_min_stake = None`, so it places no trade until minimum-stake discovery is wired after the demo credentials exist. This is deliberate and fails closed.
+- No signal runner starts without a `REAL_DATA_BACKTEST_APPROVED` line in `docs/approvals.md`, which the owner has not written.
+- No log shipping, no alert on a missing backup marker, no restart-storm alert. Add before any unattended run.

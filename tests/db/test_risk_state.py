@@ -9,7 +9,7 @@ from derivbot.risk import state
 
 pytestmark = pytest.mark.postgres
 
-NOW = dt.datetime(2026, 11, 2, 12, 0, tzinfo=dt.timezone.utc)
+NOW = dt.datetime(2026, 11, 2, 12, 0, tzinfo=dt.UTC)
 
 
 def intent(conn, st="INTENT_CREATED", created=NOW, symbol="1HZ100V", ct="DIGITEVEN", acc="ACC", key=None):
@@ -29,11 +29,11 @@ def order(conn, st, profit, settled):
 
 
 def test_day_start_boundaries():
-    assert state.day_start(NOW, 0) == dt.datetime(2026, 11, 2, 0, 0, tzinfo=dt.timezone.utc)
-    assert state.day_start(NOW, 13) == dt.datetime(2026, 11, 1, 13, 0, tzinfo=dt.timezone.utc)   # reset not yet reached today
+    assert state.day_start(NOW, 0) == dt.datetime(2026, 11, 2, 0, 0, tzinfo=dt.UTC)
+    assert state.day_start(NOW, 13) == dt.datetime(2026, 11, 1, 13, 0, tzinfo=dt.UTC)   # reset not yet reached today
     assert state.day_start(NOW, 12) == NOW
     eat = dt.timezone(dt.timedelta(hours=3))
-    assert state.day_start(NOW.astimezone(eat), 0) == dt.datetime(2026, 11, 2, 0, 0, tzinfo=dt.timezone.utc)
+    assert state.day_start(NOW.astimezone(eat), 0) == dt.datetime(2026, 11, 2, 0, 0, tzinfo=dt.UTC)
 
 
 def test_open_positions_counts_every_state_that_may_hold_a_contract(conn):

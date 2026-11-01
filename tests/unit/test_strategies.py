@@ -12,7 +12,7 @@ import pytest
 
 from derivbot.backtest.engine import causality_check, run_backtest
 from derivbot.backtest.payout import PayoutModel, Quote
-from derivbot.backtest.series import TickSeries, simulate_random_walk
+from derivbot.backtest.series import simulate_random_walk
 from derivbot.signals import registry
 from derivbot.signals.base import Signal, TickWindow
 from derivbot.signals.strategies import (
@@ -37,7 +37,7 @@ def win(quotes, t=None):
 # ------------------------------------------------------------------ EMA trend, against an independent loop oracle
 
 def oracle_ema(x, n):
-    a, e = 2.0 / (n + 1.0), None
+    a = 2.0 / (n + 1.0)
     num = den = 0.0
     for i, v in enumerate(x):                   # finite-memory EMA: weights alpha*(1-alpha)^age, normalised
         age = len(x) - 1 - i
@@ -242,7 +242,6 @@ def test_every_strategy_has_a_registered_hypothesis_whose_parameters_equal_the_c
 
 def test_the_committed_hypothesis_files_equal_what_the_generator_produces(tmp_path, monkeypatch):
     import runpy
-    import shutil
 
     snapshot = {p.name: p.read_text() for p in (ROOT / "docs" / "hypotheses").glob("*.md")}
     try:

@@ -1,10 +1,8 @@
-import json
 from decimal import Decimal
 
-import pytest
 import websockets
 
-from derivbot.collector.backfill import BackfillError, backfill_symbol, coverage
+from derivbot.collector.backfill import backfill_symbol, coverage
 from derivbot.collector.store import SqliteTickStore
 from tests.fakes.fake_deriv import FakeDeriv
 

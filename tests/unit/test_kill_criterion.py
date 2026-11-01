@@ -45,7 +45,7 @@ def test_registration_block_is_single_and_consistent_with_the_text():
 
 def test_cutoff_epoch_matches_iso_and_run_date_is_a_sunday():
     reg = load_registration()
-    iso = dt.datetime.strptime(reg["data_cutoff_utc"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
+    iso = dt.datetime.strptime(reg["data_cutoff_utc"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.UTC)
     assert int(iso.timestamp()) == reg["data_cutoff_epoch"]
     assert reg["run_date_utc"] == "2026-11-15" and dt.date(2026, 11, 15).strftime("%A") == "Sunday"
     assert reg["data_cutoff_utc"].startswith(reg["run_date_utc"])
@@ -73,7 +73,7 @@ def test_break_even_values_match_the_observed_quotes():
 def test_power_numbers_quoted_in_the_amendment_are_the_computed_ones():
     text = (ROOT / "docs" / "kill-criterion.md").read_text()
     for p in (1 / 1.95, 0.35 / 0.66):
-        for k, quoted in ((1, None), (8, None), (20, None)):
+        for k in (1, 8, 20):
             n = required_n(p, 0.02, 0.05 / k, 0.80)
             assert f"{n:,}" in text or str(n) in text, (p, k, n)
     n_parity = required_n(0.5, 1 / 1.95 - 0.5, (0.05 / 8) / 2, 0.80)
@@ -102,7 +102,7 @@ def test_holdout_start_is_the_first_commit_with_the_marker(tmp_path):
     commit("amend", "2026-11-01T00:00:00+03:00")  # offset must not matter: epoch is absolute
     f.write_text(f"v1\n{MARKER}\nmore\n")
     commit("later edit", "2026-11-02T00:00:00+00:00")
-    expected = int(dt.datetime(2026, 10, 31, 21, 0, 0, tzinfo=dt.timezone.utc).timestamp())
+    expected = int(dt.datetime(2026, 10, 31, 21, 0, 0, tzinfo=dt.UTC).timestamp())
     assert holdout_start_epoch(tmp_path) == expected
 
 

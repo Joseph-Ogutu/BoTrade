@@ -1,0 +1,52 @@
+name: ci
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: bot
+          POSTGRES_DB: derivbot
+          POSTGRES_PASSWORD: ci-throwaway
+        ports: ["55432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U bot -d derivbot" --health-interval 3s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["56379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 3s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # the secret scan reads the whole history
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - name: test database password (CI-only throwaway; the tests read dev-local/postgres.password)
+        run: mkdir -p dev-local && printf 'ci-throwaway' > dev-local/postgres.password
+      - name: ruff
+        run: ruff check .
+      - name: mypy
+        run: mypy
+      - name: tests and coverage (100% branch on risk rules and stake)
+        run: PY=python scripts/check_risk_coverage.sh
+      - name: dependency audit
+        run: pip-audit -r requirements-bot.txt -r requirements-collector.txt -r requirements-dev.txt --no-deps --disable-pip
+      - name: secret scan (whole history)
+        run: python scripts/scan_history.py
+      - name: compose files are valid
+        run: |
+          bash scripts/init_secrets.sh
+          docker compose config -q

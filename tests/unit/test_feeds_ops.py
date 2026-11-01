@@ -11,7 +11,8 @@ from derivbot.deriv import messages as m
 from derivbot.execution.feeds import SignalRunner, TickFreshness
 from derivbot.healthcheck_bot import evaluate
 from derivbot.kv.store import MemoryStore
-from derivbot.opsctl import call, main as ops_main
+from derivbot.opsctl import call
+from derivbot.opsctl import main as ops_main
 from derivbot.signals.base import Signal
 
 APPROVAL = Approval("2026-11-16", "Joseph", "STRUCTURE_FOUND")

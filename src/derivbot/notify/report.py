@@ -72,7 +72,7 @@ class DailyReporter:
     """Sends the report once per UTC day at the configured hour. The 'last sent' day lives in the KV store so a restart
     does not send it twice."""
 
-    def __init__(self, notifier, engine, kv, hour_utc: int = 0, clock=lambda: dt.datetime.now(dt.timezone.utc)) -> None:
+    def __init__(self, notifier, engine, kv, hour_utc: int = 0, clock=lambda: dt.datetime.now(dt.UTC)) -> None:
         self.n, self.engine, self.kv, self.hour, self.clock = notifier, engine, kv, hour_utc, clock
 
     async def tick(self) -> bool:

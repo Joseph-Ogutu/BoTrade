@@ -71,7 +71,7 @@ class TickWindow:
         v.flags.writeable = False
         return v
 
-    def back(self, k: int) -> "TickWindow":
+    def back(self, k: int) -> TickWindow:
         """The same causal view as it was k ticks ago (still only ticks that exist now). Used to re-evaluate past decisions."""
         if k < 0 or self._t - k < 0:
             raise ValueError("back(k) needs 0 <= k <= t")
@@ -82,10 +82,18 @@ class TickWindow:
 
 
 class Strategy(Protocol):
-    id: str
-    version: str
-    duration_ticks: int
-    warmup_ticks: int
+    # read-only on purpose: strategies are immutable once registered
+    @property
+    def id(self) -> str: ...
+
+    @property
+    def version(self) -> str: ...
+
+    @property
+    def duration_ticks(self) -> int: ...
+
+    @property
+    def warmup_ticks(self) -> int: ...
 
     @property
     def params(self) -> dict[str, Any]: ...

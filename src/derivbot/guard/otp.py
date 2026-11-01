@@ -41,7 +41,7 @@ class HttpOtpProvider:
         self._client = client or httpx.AsyncClient(timeout=15.0)
 
     @classmethod
-    def from_settings(cls, s: Settings, **kw: Any) -> "HttpOtpProvider":
+    def from_settings(cls, s: Settings, **kw: Any) -> HttpOtpProvider:
         """Uses ONLY the demo credentials; the real ones are never read here, whatever else is configured."""
         if not (s.deriv_app_id_demo and s.deriv_pat_demo and s.deriv_account_id_demo):
             raise OtpError("demo credentials are not configured")

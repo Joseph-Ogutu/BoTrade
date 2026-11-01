@@ -1,10 +1,8 @@
 """Real mode must be impossible to reach by accident, by one flag, by a missing file, or by a wrong account type."""
 
 import itertools
-import logging
 from pathlib import Path
 
-import httpx
 import pytest
 
 from derivbot.config.settings import load_settings
@@ -94,7 +92,7 @@ def test_the_committed_repository_and_defaults_resolve_demo():
     ("approved_on: 2026-12-01\napproved_by: J\n", "no commit"),
     (f"approved_on: not-a-date\ncommit: {HEAD}\napproved_by: J\n", "bad date"),
     (f"approved_on: 2026-12-01\ncommit: {HEAD}\napproved_by:\n", "no approver"),
-    (f"approved_on: 2026-12-01\ncommit: fedcba9876543210\napproved_by: J\n", "other commit"),
+    ("approved_on: 2026-12-01\ncommit: fedcba9876543210\napproved_by: J\n", "other commit"),
     ("approved_on: 2026-12-01\ncommit: abc\napproved_by: J\n", "commit too short"),
     ("I approve", "free text"),
 ])
@@ -158,10 +156,10 @@ def test_classify_url_accepts_only_the_exact_production_demo_and_real_urls():
     base = "wss://api.derivws.com/trading/v1/options/ws"
     assert classify_url(f"{base}/demo?otp=abc", PROD_POLICY) == "demo"
     assert classify_url(f"{base}/real?otp=abc", PROD_POLICY) == "real"
-    for bad in (f"ws://api.derivws.com/trading/v1/options/ws/demo?otp=a", f"wss://api.derivws.com.evil.com/trading/v1/options/ws/demo?otp=a",
-                f"wss://evil.com/trading/v1/options/ws/demo", f"wss://api.derivws.com/trading/v1/options/ws/demo/extra",
-                f"wss://api.derivws.com/trading/v1/options/ws/public", "wss://api.derivws.com/", "", "garbage",
-                f"wss://user:pw@api.derivws.com/trading/v1/options/ws/demo", f"wss://api.derivws.com:8443/trading/v1/options/ws/demo"):
+    for bad in ("ws://api.derivws.com/trading/v1/options/ws/demo?otp=a", "wss://api.derivws.com.evil.com/trading/v1/options/ws/demo?otp=a",
+                "wss://evil.com/trading/v1/options/ws/demo", "wss://api.derivws.com/trading/v1/options/ws/demo/extra",
+                "wss://api.derivws.com/trading/v1/options/ws/public", "wss://api.derivws.com/", "", "garbage",
+                "wss://user:pw@api.derivws.com/trading/v1/options/ws/demo", "wss://api.derivws.com:8443/trading/v1/options/ws/demo"):
         assert classify_url(bad, PROD_POLICY) is None, bad
 
 

@@ -2,8 +2,6 @@
 
 from decimal import Decimal as D
 
-import pytest
-
 from derivbot.risk import rules as r
 from derivbot.risk.stake import StakeResult
 

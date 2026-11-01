@@ -5,9 +5,16 @@ correction. Regime filters wrap the DEFAULT inner strategy only, and the selecto
 from __future__ import annotations
 
 from itertools import product
-from typing import Any
+from typing import Any, cast
 
-from derivbot.signals.strategies import AdaptiveSelector, EmaTrend, RegimeFilter, RsiBollinger, VolBreakout, default_strategies
+from derivbot.signals.strategies import (
+    AdaptiveSelector,
+    EmaTrend,
+    RegimeFilter,
+    RsiBollinger,
+    VolBreakout,
+    default_strategies,
+)
 
 CONFIRMATORY_SYMBOLS = ("1HZ100V", "R_100")        # K counts each variant once per confirmatory symbol
 DURATION_TICKS = 5
@@ -42,7 +49,7 @@ def build_variant(name: str, point: dict[str, Any]):
         inner = base[name.removeprefix("regime_")]
         return RegimeFilter(inner, "ranging" if "rsi" in name else "trending", threshold=point["threshold"])
     if name == "adaptive_selector":
-        return AdaptiveSelector(base["adaptive_selector"].candidates, eval_window=point["eval_window"])
+        return AdaptiveSelector(cast(AdaptiveSelector, base["adaptive_selector"]).candidates, eval_window=point["eval_window"])
     raise KeyError(name)
 
 

@@ -30,8 +30,8 @@ def main() -> int:  # pragma: no cover - exercised in the container
         api_ok = False
     age = None
     try:
+
         import redis
-        from urllib.parse import quote
 
         from derivbot.config.settings import assemble_urls
         from derivbot.kv.store import HeartbeatKV, RedisStore

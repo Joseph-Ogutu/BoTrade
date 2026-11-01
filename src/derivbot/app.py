@@ -239,7 +239,7 @@ async def _report_loop(app: App, halt: asyncio.Event) -> None:
             log.exception("daily report failed")
         try:
             await asyncio.wait_for(halt.wait(), timeout=300)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pass
 
 

@@ -14,5 +14,35 @@ asyncio_default_fixture_loop_scope = "function"
 markers = ["postgres: needs the local Postgres from scripts/dev_up.sh", "redis: needs the local Redis from scripts/dev_up.sh"]
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 src = ["src", "tests"]
+# src/derivbot/gate1 is under independent review and must not be edited, so it is not auto-fixed or linted here.
+# Remove this line when the harness is frozen and reviewed.
+extend-exclude = ["src/derivbot/gate1", "scripts/run_gate1.py", "scripts/run_gate1_control.py", "scripts/gate1_power.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501", "B905", "B008", "UP042"]   # E501: formatting; B905: strict= would change behavior; B008: FastAPI idiom; UP042: str-Enum is deliberate (JSON values)
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011", "B017"]
+"scripts/backfill_holdout.py" = ["UP041"]   # holdout provenance script: left byte-identical
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+files = ["src/derivbot"]
+exclude = ["src/derivbot/gate1/"]   # frozen pending independent review, see the ruff note above
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+check_untyped_defs = true
+
+[tool.coverage.run]
+branch = true
+source = ["src/derivbot"]
+omit = ["src/derivbot/gate1/*"]
+
+[tool.coverage.report]
+exclude_also = ["pragma: no cover", "if __name__ == .__main__.:"]

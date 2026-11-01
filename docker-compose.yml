@@ -1,6 +1,135 @@
-# Collector only. No env_file, no secrets: the collector uses the public endpoint.
-# Postgres, strategies and the executor are NOT part of this file.
+# Full stack: postgres, redis, migrate (one shot), collector, bot. DEMO ONLY. Nothing here deploys itself.
+#
+# Hard-coded on purpose, not read from any env file: TRADING_MODE=demo, ALLOW_REAL_TRADING=false. Real trading is also
+# locked in code (REAL_TRADING_IMPLEMENTED=False) and by a database CHECK, so editing this file cannot enable it.
+# Secrets are files under ./secrets (git-ignored), created by scripts/init_secrets.sh, mounted at /run/secrets.
+# No service publishes a port. The admin API listens on 127.0.0.1 inside the bot container; use scripts/opsctl.sh.
+name: derivbot
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+  restart: unless-stopped
+  logging: *logging
+
 services:
+  postgres:
+    <<: *hardening
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+    container_name: derivbot-postgres
+    environment:
+      POSTGRES_USER: bot
+      POSTGRES_DB: derivbot
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      TZ: UTC
+    secrets: [postgres_password]
+    command: ["postgres", "-c", "timezone=UTC", "-c", "log_timezone=UTC", "-c", "listen_addresses=*"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    tmpfs:
+      - /tmp
+      - /run/postgresql
+    # postgres needs CHOWN/SETUID/SETGID/DAC_OVERRIDE/FOWNER to start from the root-owned entrypoint, then drops to uid 70
+    cap_add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER]
+    networks: [backend]
+    mem_limit: 512m
+    pids_limit: 200
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bot -d derivbot"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  redis:
+    <<: *hardening
+    image: redis:7-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+    container_name: derivbot-redis
+    secrets: [redis_password]
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$(cat /run/secrets/redis_password)\" --appendonly yes --dir /data"]
+    volumes:
+      - redisdata:/data
+    networks: [backend]
+    mem_limit: 256m
+    pids_limit: 100
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$(cat /run/secrets/redis_password)\" redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  # One-shot: applies migrations, then exits 0. The bot refuses to start unless the schema is at the alembic head.
+  migrate:
+    <<: *hardening
+    restart: "no"
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    image: derivbot-bot:local
+    container_name: derivbot-migrate
+    command: ["alembic", "upgrade", "head"]
+    environment: &db_env
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: bot
+      POSTGRES_DB: derivbot
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
+    tmpfs: [/tmp]
+    networks: [backend]
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  bot:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    image: derivbot-bot:local
+    container_name: derivbot-bot
+    command: ["python", "-m", "derivbot.app"]
+    environment:
+      <<: *db_env
+      REDIS_HOST: redis
+      REDIS_PASSWORD_FILE: /run/secrets/redis_password
+      TRADING_MODE: demo
+      ALLOW_REAL_TRADING: "false"
+      DERIV_PAT_DEMO_FILE: /run/secrets/deriv_pat_demo
+      TELEGRAM_BOT_TOKEN_FILE: /run/secrets/telegram_bot_token
+      ADMIN_API_TOKEN_FILE: /run/secrets/admin_api_token
+      DERIV_APP_ID_DEMO: ${DERIV_APP_ID_DEMO:-}
+      DERIV_ACCOUNT_ID_DEMO: ${DERIV_ACCOUNT_ID_DEMO:-}
+      TELEGRAM_ALLOWED_CHAT_IDS: ${TELEGRAM_ALLOWED_CHAT_IDS:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      KILL_SWITCH_FILE: /state/KILL_SWITCH
+      TZ: UTC
+    secrets: [postgres_password, redis_password, deriv_pat_demo, telegram_bot_token, admin_api_token]
+    volumes:
+      - botstate:/state          # kill flag file: survives container recreation
+    tmpfs: [/tmp]
+    networks: [backend, egress]
+    mem_limit: 512m
+    pids_limit: 200
+    stop_grace_period: 30s
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "python", "-m", "derivbot.healthcheck_bot"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
   collector:
     build:
       context: .
@@ -34,3 +163,25 @@ services:
       timeout: 10s
       retries: 3
       start_period: 90s
+
+networks:
+  backend:
+    internal: true        # postgres and redis have no route to the internet
+  egress: {}              # the bot (Deriv, Telegram) only
+
+volumes:
+  pgdata:
+  redisdata:
+  botstate:
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password
+  redis_password:
+    file: ./secrets/redis_password
+  deriv_pat_demo:
+    file: ./secrets/deriv_pat_demo
+  telegram_bot_token:
+    file: ./secrets/telegram_bot_token
+  admin_api_token:
+    file: ./secrets/admin_api_token

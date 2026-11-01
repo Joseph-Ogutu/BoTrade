@@ -1,6 +1,5 @@
 import sqlite3
 
-import numpy as np
 import pytest
 
 from derivbot.gate1.loader import (
@@ -8,7 +7,9 @@ from derivbot.gate1.loader import (
     RunPermit,
     check_permit_conditions,
     load_series,
-    test_only_permit as make_test_permit,   # alias keeps pytest from collecting the helper as a test
+)
+from derivbot.gate1.loader import (
+    test_only_permit as make_test_permit,  # alias keeps pytest from collecting the helper as a test
 )
 
 H0, CUT = 1000, 5000

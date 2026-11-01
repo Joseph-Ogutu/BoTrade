@@ -26,11 +26,11 @@ class TickSeries:
     def __len__(self) -> int:
         return int(self.epochs.size)
 
-    def prefix(self, n: int) -> "TickSeries":
+    def prefix(self, n: int) -> TickSeries:
         return TickSeries(self.symbol, self.epochs[:n], self.quotes[:n], self.digits[:n], self.pip_size)
 
     @classmethod
-    def from_quotes(cls, symbol: str, epochs: np.ndarray, quotes: np.ndarray, pip_size: int) -> "TickSeries":
+    def from_quotes(cls, symbol: str, epochs: np.ndarray, quotes: np.ndarray, pip_size: int) -> TickSeries:
         scaled = np.rint(np.asarray(quotes, dtype=np.float64) * 10 ** pip_size).astype(np.int64)
         return cls(symbol, np.asarray(epochs, dtype=np.int64), scaled / 10.0 ** pip_size, (scaled % 10).astype(np.int8), pip_size)
 

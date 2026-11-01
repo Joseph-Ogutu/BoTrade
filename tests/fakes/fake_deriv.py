@@ -88,7 +88,7 @@ class FakeDeriv:
         self._clients: set = set()
 
     # ------------------------------------------------------------ lifecycle
-    async def start(self) -> "FakeDeriv":
+    async def start(self) -> FakeDeriv:
         async def process_request(path, request_headers):
             if self.reject_handshake_status:
                 return self.reject_handshake_status, Headers(), b"unauthorized"
@@ -102,7 +102,7 @@ class FakeDeriv:
             self._server.close()
             await self._server.wait_closed()
 
-    async def __aenter__(self) -> "FakeDeriv":
+    async def __aenter__(self) -> FakeDeriv:
         return await self.start()
 
     async def __aexit__(self, *exc: object) -> None:

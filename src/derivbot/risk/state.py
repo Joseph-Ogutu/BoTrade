@@ -17,7 +17,7 @@ _IGNORED_FOR_DUPLICATES = "'RISK_REJECTED', 'PROPOSAL_REJECTED', 'NOT_PLACED'"
 
 def day_start(now: dt.datetime, reset_utc_hour: int) -> dt.datetime:
     """Most recent daily reset boundary at or before `now`, in UTC. Fixed by config, never by process restarts."""
-    now = now.astimezone(dt.timezone.utc)
+    now = now.astimezone(dt.UTC)
     boundary = now.replace(hour=reset_utc_hour, minute=0, second=0, microsecond=0)
     return boundary if boundary <= now else boundary - dt.timedelta(days=1)
 

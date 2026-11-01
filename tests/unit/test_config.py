@@ -7,14 +7,13 @@ import pytest
 from derivbot.common import redaction
 from derivbot.config.risk import (
     SET_BY_OWNER,
-    RiskConfig,
     RiskConfigError,
     StrategyApprovals,
     config_hash,
     load_risk_config,
     load_strategy_approvals,
 )
-from derivbot.config.settings import Settings, SettingsError, load_settings, parse_env_file
+from derivbot.config.settings import SettingsError, load_settings, parse_env_file
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -198,7 +197,7 @@ def test_file_secret_errors_are_loud_and_never_echo_values(tmp_path):
     empty = tmp_path / "e"
     empty.write_text("  \n")
     with pytest.raises(SettingsError, match="empty"):
-        load_settings({**base, "ADMIN_API_TOKEN_FILE": str(empty)})
+        load_settings({**base, "POSTGRES_PASSWORD_FILE": str(empty)})
 
 
 def test_urls_are_assembled_from_parts_with_quoted_passwords(tmp_path):
@@ -223,3 +222,10 @@ def test_a_missing_optional_secret_file_means_not_provided_never_an_empty_secret
     s = load_settings({**base, "ADMIN_API_TOKEN_FILE": str(tmp_path / "nope"), "DERIV_PAT_DEMO_FILE": str(tmp_path / "nope2"),
                        "TELEGRAM_BOT_TOKEN_FILE": str(tmp_path / "nope3")})
     assert s.admin_api_token is None and s.deriv_pat_demo is None and s.telegram_bot_token is None
+
+
+def test_an_empty_optional_secret_file_means_not_provided(tmp_path):
+    empty = tmp_path / "e"
+    empty.write_text("\n")
+    base = {"DATABASE_URL": "postgresql+psycopg://u:p@h/d", "REDIS_URL": "redis://r/0"}
+    assert load_settings({**base, "ADMIN_API_TOKEN_FILE": str(empty)}).admin_api_token is None

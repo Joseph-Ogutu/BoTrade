@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 from decimal import Decimal as D
 
@@ -9,7 +8,7 @@ import pytest
 from derivbot.common import redaction
 from derivbot.config.settings import load_settings
 from derivbot.deriv.session import DerivSession, SessionSupervisor
-from derivbot.guard.endpoint import DEMO_PATH, REAL_PATH, PROD_POLICY, EndpointPolicy, classify_url
+from derivbot.guard.endpoint import DEMO_PATH, REAL_PATH, EndpointPolicy, classify_url
 from derivbot.guard.otp import HttpOtpProvider, OtpError, RealModeRefused
 from derivbot.guard.verify import DemoConnectionVerifier, assess
 from tests.fakes.fake_deriv import FakeDeriv

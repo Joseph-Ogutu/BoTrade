@@ -16,19 +16,19 @@ _UTC_Z = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
 
 def utc_now_iso(now: Callable[[], dt.datetime] | None = None) -> str:
-    n = now() if now else dt.datetime.now(dt.timezone.utc)
-    return n.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    n = now() if now else dt.datetime.now(dt.UTC)
+    return n.astimezone(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def iso_from_epoch(epoch: int | float) -> str:
-    return dt.datetime.fromtimestamp(int(epoch), dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return dt.datetime.fromtimestamp(int(epoch), dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def parse_utc(text: str) -> dt.datetime:
     """Parse strictly YYYY-MM-DDTHH:MM:SSZ. Anything else (naive, offsets) is rejected."""
     if not isinstance(text, str) or not _UTC_Z.match(text):
         raise ValueError(f"not a UTC ISO-8601 timestamp with Z: {text!r}")
-    return dt.datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
+    return dt.datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.UTC)
 
 
 def weekday_name(date_iso: str) -> str:

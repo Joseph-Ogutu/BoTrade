@@ -71,7 +71,7 @@ class DerivSession:
         if self._reader is not None:
             try:
                 await asyncio.wait_for(self._reader, 2)
-            except (asyncio.TimeoutError, asyncio.CancelledError):
+            except (TimeoutError, asyncio.CancelledError):
                 pass
 
     async def _read_loop(self) -> None:
@@ -133,7 +133,7 @@ class DerivSession:
                 raise ConnectionLost("connection closed while sending") from exc
             try:
                 return await asyncio.wait_for(fut, timeout)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 raise RequestTimeout(f"no reply to {msg_type} within {timeout}s") from None
         finally:
             self._pending.pop(rid, None)
@@ -186,13 +186,13 @@ class SessionSupervisor:
             finally:
                 self.session = None
                 await session.close()
-                for hook in self._on_disconnected:
-                    await hook()
+                for on_down in self._on_disconnected:
+                    await on_down()
             if halt.is_set():
                 break
             delay = min(self._cap, self._base * (2 ** attempt)) * (0.5 + 0.5 * random.random())
             attempt += 1
             try:
                 await asyncio.wait_for(halt.wait(), timeout=delay)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass

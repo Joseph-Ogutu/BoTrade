@@ -12,7 +12,7 @@ from derivbot.notify.transport import FakeTransport
 
 pytestmark = pytest.mark.postgres
 
-D0 = dt.datetime(2026, 11, 2, 0, 0, tzinfo=dt.timezone.utc)
+D0 = dt.datetime(2026, 11, 2, 0, 0, tzinfo=dt.UTC)
 D1 = D0 + dt.timedelta(days=1)
 
 
@@ -56,18 +56,18 @@ def test_report_numbers_and_text(conn):
 async def test_reporter_sends_once_per_day_after_the_hour_and_not_twice_after_a_restart(conn, pg_url):
     seed(conn)
     conn.commit()
-    now = {"t": dt.datetime(2026, 11, 3, 0, 5, tzinfo=dt.timezone.utc)}
+    now = {"t": dt.datetime(2026, 11, 3, 0, 5, tzinfo=dt.UTC)}
     transport, kv = FakeTransport(), MemoryStore()
     rep = DailyReporter(Notifier(transport, [1], min_level="warning"), create_engine(pg_url), kv, hour_utc=0, clock=lambda: now["t"])
     assert await rep.tick() is True and "Daily report 2026-11-02" in transport.sent[0][1]
     assert await rep.tick() is False                                  # already sent for this day
     restarted = DailyReporter(Notifier(transport, [1], min_level="warning"), create_engine(pg_url), kv, hour_utc=0, clock=lambda: now["t"])
     assert await restarted.tick() is False and len(transport.sent) == 1
-    now["t"] = dt.datetime(2026, 11, 4, 0, 1, tzinfo=dt.timezone.utc)
+    now["t"] = dt.datetime(2026, 11, 4, 0, 1, tzinfo=dt.UTC)
     assert await rep.tick() is True and len(transport.sent) == 2
 
 
 async def test_reporter_waits_for_its_hour(conn, pg_url):
     rep = DailyReporter(Notifier(FakeTransport(), [1]), create_engine(pg_url), MemoryStore(), hour_utc=6,
-                        clock=lambda: dt.datetime(2026, 11, 3, 5, 59, tzinfo=dt.timezone.utc))
+                        clock=lambda: dt.datetime(2026, 11, 3, 5, 59, tzinfo=dt.UTC))
     assert await rep.tick() is False

@@ -19,7 +19,7 @@ for f in sorted((Path(__file__).resolve().parents[1] / "docs" / "evidence").glob
     data = json.loads(f.read_text())
     if "_evidence" in data:
         continue
-    mtime = dt.datetime.fromtimestamp(os.stat(f).st_mtime, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    mtime = dt.datetime.fromtimestamp(os.stat(f).st_mtime, dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     server = None
     if isinstance(data.get("proposal"), dict) and "date_start" in data["proposal"]:
         server = iso_from_epoch(data["proposal"]["date_start"])

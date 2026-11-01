@@ -242,7 +242,7 @@ class AdaptiveSelector:
 
 
 def default_strategies() -> dict[str, Strategy]:
-    base = {"ema_trend": EmaTrend(), "rsi_bollinger": RsiBollinger(), "vol_breakout": VolBreakout()}
+    base: dict[str, Strategy] = {"ema_trend": EmaTrend(), "rsi_bollinger": RsiBollinger(), "vol_breakout": VolBreakout()}
     out: dict[str, Strategy] = dict(base)
     out["regime_ema_trend"] = RegimeFilter(base["ema_trend"], "trending")
     out["regime_vol_breakout"] = RegimeFilter(base["vol_breakout"], "trending")
