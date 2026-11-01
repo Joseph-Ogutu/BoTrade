@@ -46,3 +46,25 @@ def test_clean_repo_reports_zero(tmp_path):
     git(tmp_path, "commit", "-q", "-m", "ok")
     out = run(tmp_path)
     assert "[github-token] 0 path(s)" in out and "[private-key-block] 0 path(s)" in out
+
+
+def _strict(repo):
+    env = {**os.environ, "SCAN_REPO": str(repo)}
+    return subprocess.run([sys.executable, str(SCRIPT), "--strict"], capture_output=True, text=True, env=env)
+
+
+def test_strict_mode_fails_on_a_secret_shaped_string_and_never_prints_it(tmp_path):
+    git(tmp_path, "init", "-q")
+    (tmp_path / "config.py").write_text(f'TOKEN = "{FAKE_GH}"\n')
+    git(tmp_path, "add", "-A")
+    git(tmp_path, "commit", "-q", "-m", "c1")
+    r = _strict(tmp_path)
+    assert r.returncode == 1 and FAKE_GH not in r.stdout + r.stderr
+
+
+def test_strict_mode_passes_on_a_clean_repo(tmp_path):
+    git(tmp_path, "init", "-q")
+    (tmp_path / "a.txt").write_text("hello\n")
+    git(tmp_path, "add", "-A")
+    git(tmp_path, "commit", "-q", "-m", "c1")
+    assert _strict(tmp_path).returncode == 0

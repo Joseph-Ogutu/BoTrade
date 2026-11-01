@@ -18,7 +18,7 @@ audit:
 	$(PY) -m pip_audit -r requirements-bot.txt -r requirements-collector.txt -r requirements-dev.txt --no-deps --disable-pip
 
 scan:
-	$(PY) scripts/scan_history.py
+	$(PY) scripts/scan_history.py --strict
 
 # Everything CI runs, in the same order.
 check: lint typecheck cov audit scan compose-check

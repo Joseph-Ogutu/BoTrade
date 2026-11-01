@@ -45,7 +45,15 @@ NAME_PATTERNS = {
 }
 
 
+# Labels whose any hit is a likely real secret. Placeholders documented in docs/security-scan.md (otp= example, CHANGE_ME
+# URL) are in labels NOT listed here, so --strict stays green on them and goes red on a key-shaped string.
+STRICT_LABELS = ("private-key-block", "aws-access-key", "github-token", "slack-token", "anthropic-key", "openai-style-key",
+                 "jwt", "pat-prefixed-token", "bearer-token-literal", "long-literal-assigned-to-secret-name")
+
+
 def main() -> int:
+    strict = "--strict" in sys.argv
+    strict_hits = 0
     revs = git("rev-list", "--all").split()
     short = {r: r[:7] for r in revs}
     print(f"refs: {git('for-each-ref', '--format=%(refname)').split()}")
@@ -76,6 +84,11 @@ def main() -> int:
         print(f"[{label}] {len(found)} path(s)")
         for path, hs in sorted(found.items()):
             print(f"   {path}   first {hs[-1]}  commits {len(hs)}")
+        if label in STRICT_LABELS:
+            strict_hits += len(found)
+    if strict and strict_hits:
+        print(f"\nSTRICT: {strict_hits} path(s) matched a secret-format pattern: failing")
+        return 1
     return 0
 
 

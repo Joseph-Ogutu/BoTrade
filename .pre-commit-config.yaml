@@ -14,7 +14,7 @@ repos:
         types: [python]
       - id: secret-scan
         name: secret scan (history and tree)
-        entry: python scripts/scan_history.py
+        entry: python scripts/scan_history.py --strict
         language: system
         pass_filenames: false
         always_run: true
