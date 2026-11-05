@@ -71,6 +71,7 @@ class FakeDeriv:
         self.reject_handshake_status: int | None = None
         self.drop_ticks_after: int | None = None
         self.closed_symbols: set[str] = set()
+        self.min_stake: str | None = "0.35"   # OBSERVED shape: proposal.validation_params.stake.min (None omits it)
         self.proposal_markup = 0.0      # ask_price = amount * (1 + markup): simulates a price that moved
         self.buy_messages = []          # proposal ids of every buy message that arrived, before any fault
         self.buys_received = 0          # buy requests that reached the server, whatever happened to the reply
@@ -215,7 +216,8 @@ class FakeDeriv:
             self.proposals[pid] = {"amount": amount, "ask": ask, "req": req}
             return [self._envelope(req, "proposal", proposal={
                 "id": pid, "ask_price": ask, "payout": round(amount * (1 + self.r), 2),
-                "spot": 100.0, "spot_time": self._epoch, "date_start": self._epoch, "longcode": "fake"},
+                "spot": 100.0, "spot_time": self._epoch, "date_start": self._epoch, "longcode": "fake",
+                **({"validation_params": {"payout": {"max": "10000.00"}, "stake": {"min": self.min_stake}}} if self.min_stake else {})},
                 subscription={"id": _sid()})]
         if msg_type == "buy":
             self.buys_received += 1
