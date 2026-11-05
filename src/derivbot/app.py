@@ -101,6 +101,7 @@ class App:
     poller: TelegramPoller | None
     signal_runner: SignalRunner | None
     notes: list[str] = field(default_factory=list)
+    soak: Any = None
 
     def status(self) -> dict[str, Any]:
         info = self.verifier.get_info()
@@ -111,7 +112,7 @@ class App:
                 "mode": "demo", "session_connected": bool(self.supervisor and self.supervisor.session),
                 "connects": self.supervisor.connects if self.supervisor else 0,
                 "last_session_error": self.supervisor.last_error if self.supervisor else None,
-                "reconcile_age_s": self.reconciler.age_s(), "signals": "on" if self.signal_runner else "off",
+                "reconcile_age_s": self.reconciler.age_s(), "signals": "on" if self.signal_runner else ("soak" if self.soak else "off"),
                 "notifier": self.notifier.status(), "notes": self.notes}
 
 
@@ -120,6 +121,13 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
     notes: list[str] = []
     risk_cfg = load_risk_config(root / "config" / "risk.json")           # raises RiskConfigError naming every unset value
     approvals = load_strategy_approvals(root / "config" / "strategies.json")
+    soak_enabled = os.environ.get("PIPELINE_SOAK") == "1"
+    if soak_enabled:                      # in memory only: config/strategies.json is the owner's file and is never touched
+        from derivbot.config.risk import StrategyApprovals
+        from derivbot.execution.soak import SOAK_ID, SOAK_VERSION
+
+        approvals = StrategyApprovals(approved={**approvals.approved, SOAK_ID: SOAK_VERSION})
+        notes.append("PIPELINE SOAK ON: random demo trades every few minutes to exercise the machinery; not a strategy")
     engine = make_engine(settings.database_url.get_secret_value())
     assert_schema_current(engine)
     with engine.begin() as c:
@@ -194,6 +202,13 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
     except RealDataNotApproved as exc:
         notes.append(f"signals off: real-data use not approved ({exc})")
 
+    soak = None
+    if soak_enabled and supervisor is not None:
+        from derivbot.execution.soak import SoakTrader
+
+        soak = SoakTrader(executor.submit, settings.deriv_account_id_demo or "", ks.is_engaged,
+                          lambda: bool(supervisor.session), interval_s=float(os.environ.get("SOAK_INTERVAL_S", "300")))
+
     app_box: dict[str, App] = {}
     accounts_view = None
     if settings.deriv_app_id_demo and settings.deriv_pat_demo:
@@ -225,7 +240,8 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
     poller = TelegramPoller(transport, cmds) if (settings.telegram_bot_token and chat_ids) else None
     hb = Heartbeater(HeartbeatKV(kv, ttl_s=60), "bot", notifier, lambda: {"signals": "on" if runner else "off"}, interval_s=10)
     reporter = DailyReporter(notifier, engine, kv, hour_utc=risk_cfg.daily_reset_utc_hour)
-    app = App(settings, engine, kv, ks, notifier, executor, reconciler, supervisor, verifier, fresh, hb, reporter, api, poller, runner, notes)
+    app = App(settings, engine, kv, ks, notifier, executor, reconciler, supervisor, verifier, fresh, hb, reporter, api, poller, runner, notes,
+              soak=soak)
     app_box["a"] = app
     return app
 
@@ -254,6 +270,8 @@ async def run(app: App, halt: asyncio.Event, api_port: int = 8787) -> None:
         ("balance_history", BalanceHistory(app.engine, app.verifier.get_info, app.settings.deriv_account_id_demo or "").run(halt))]]
     if app.supervisor:
         tasks.append(asyncio.create_task(app.supervisor.run(halt), name="session"))
+    if app.soak:
+        tasks.append(asyncio.create_task(app.soak.run(halt), name="soak"))
     if app.poller:
         tasks.append(asyncio.create_task(app.poller.run(halt), name="telegram"))
     for note in app.notes:

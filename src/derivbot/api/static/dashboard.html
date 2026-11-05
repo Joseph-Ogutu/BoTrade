@@ -251,7 +251,7 @@ function render(d){
   spark(d.equity_curve);
 
   var ul=$("trades");clear(ul);
-  if(!d.recent_trades||!d.recent_trades.length){var e=li();e.appendChild(div("empty","No trades yet. None are expected until a strategy is approved."));ul.appendChild(e)}
+  if(!d.recent_trades||!d.recent_trades.length){var e=li();e.appendChild(div("empty","No trades yet."));ul.appendChild(e)}
   else d.recent_trades.forEach(function(x){
     var r=li("trade");
     r.appendChild(div("a",x.symbol+" "+x.type));
@@ -274,7 +274,7 @@ function render(d){
   pill($("sKill"),ks.engaged?"bad":"ok",ks.engaged?"ENGAGED":"clear");
   var ra=d.reconcile_age_s;pill($("sRecon"),ra===null||ra===undefined?"warn":(ra>120?"warn":"ok"),secs(ra));
   var ta=d.tick_age_s;pill($("sTick"),ta===null||ta===undefined?"warn":(ta>10?"warn":"ok"),ta===null||ta===undefined?"no ticks":secs(ta));
-  pill($("sSig"),d.signals==="on"?"ok":"",d.signals==="on"?"running":"off, none approved");
+  pill($("sSig"),d.signals==="on"?"ok":(d.signals==="soak"?"warn":""),d.signals==="on"?"running":(d.signals==="soak"?"pipeline soak: random demo trades":"off, none approved"));
   var bn=$("banner"),msg=[];
   if(ks.engaged)msg.push("Kill switch is engaged: no new trades.");
   if(d.last_session_error)msg.push("Last session problem: "+d.last_session_error);
