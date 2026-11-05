@@ -49,10 +49,12 @@ def test_a_risk_file_with_every_owner_value_unset_fails_loudly_and_lists_them_al
 
 
 def test_the_committed_risk_file_holds_the_values_the_owner_approved():
-    """Approved by the owner in chat on 2026-11-05 (demo account). Changing a number here is a deliberate edit of this test."""
+    """Approved by the owner in chat (demo account). 2026-11-05: first values. Later that day the owner asked for a bigger demo stake
+    for the day-long soak, so stake cap 25, daily loss 300 and 25 consecutive losses (a 3-loss lock cannot clear without a win and
+    would stall the soak). These are DEMO soak values, to be reviewed before any real use. Changing a number is a deliberate edit."""
     cfg = load_risk_config(ROOT / "config" / "risk.json")
-    assert (cfg.risk_per_trade_pct, cfg.max_stake_abs, cfg.max_daily_loss_abs) == (Decimal("0.01"), Decimal("1.00"), Decimal("5.00"))
-    assert (cfg.max_consecutive_losses, cfg.max_open_positions, cfg.max_trades_per_hour) == (3, 1, 20)
+    assert (cfg.risk_per_trade_pct, cfg.max_stake_abs, cfg.max_daily_loss_abs) == (Decimal("0.01"), Decimal("25.00"), Decimal("300.00"))
+    assert (cfg.max_consecutive_losses, cfg.max_open_positions, cfg.max_trades_per_hour) == (25, 1, 20)
     assert cfg.max_proposal_price_slippage == Decimal("0.02") and cfg.stale_data_max_age_s == 10
     assert cfg.min_net_payout_ratio == Decimal("0.80") and cfg.reconcile_max_age_s == 120
     assert cfg.recent_duplicate_window_s == 30 and cfg.daily_reset_utc_hour == 0
