@@ -44,8 +44,7 @@ def test_page_has_no_external_resources_no_inline_handlers_and_no_unsafe_dom_wri
     assert not re.search(r"\son[a-z]+\s*=", HTML)                 # no inline event handlers
     assert not re.search(r"\sstyle\s*=", HTML)                    # the CSP forbids inline style attributes
     js = re.search(r"<script>(.*?)</script>", HTML, re.S).group(1)
-    for banned in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function", "setAttribute(\"style\"",
-                   "localStorage"):
+    for banned in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function", "setAttribute(\"style\""):
         assert banned not in js, banned
 
 
@@ -55,7 +54,11 @@ def test_the_page_offers_no_release_and_its_only_writes_are_kill_login_and_logou
     assert set(re.findall(r"api\(\"([^\"]+)\"", js)) == {"/status", "/api/summary", "/kill", "/api/trades?page="}
     assert set(re.findall(r"fetch\(\"([^\"]+)\"", js)) == {"/api/auth-methods", "/api/login", "/api/logout"}
     assert re.findall(r"method:\"([A-Z]+)\"", js) == ["POST", "POST", "POST"]          # kill, logout, login: no PUT, no DELETE
-    assert "localStorage" not in js and "document.cookie" not in js                     # the session cookie is HttpOnly anyway
+    assert "document.cookie" not in js                                                  # the session cookie is HttpOnly anyway
+    # localStorage may hold the theme choice and nothing else: never a token, a password or any account data
+    assert set(re.findall(r"localStorage\.(?:get|set)Item\(\"([^\"]+)\"", js)) == {"bt_theme"}
+    assert len(re.findall(r"localStorage", js)) == len(re.findall(r"localStorage\.(?:get|set)Item\(\"bt_theme\"", js))
+    assert re.findall(r"sessionStorage\.setItem\(KEY,token\)", js)                    # the token is per tab only
 
 
 def test_summary_needs_the_bearer_token(tmp_path):
