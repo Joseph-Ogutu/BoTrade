@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex, nofollow">
+<title>BoTrade Console</title>
+<style>
+:root{
+  --bg:#f4f6f8; --surface:#ffffff; --surface2:#eef1f4; --text:#14202b; --muted:#5b6b7a; --line:#dde3e9;
+  --accent:#0b7a75; --accent-ink:#ffffff; --ok:#177a45; --warn:#9a6700; --bad:#b42318; --bad-bg:#fdecea; --ok-bg:#e6f4ec; --warn-bg:#fff4d6;
+  --radius:14px; --pad:16px; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1419; --surface:#161e26; --surface2:#1d2731; --text:#e6edf3; --muted:#92a1b0; --line:#273341;
+    --accent:#3cc4bb; --accent-ink:#06201e; --ok:#4cc38a; --warn:#e3b341; --bad:#ff7b72; --bad-bg:#3a1b1a; --ok-bg:#12301f; --warn-bg:#33290d;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1419; --surface:#161e26; --surface2:#1d2731; --text:#e6edf3; --muted:#92a1b0; --line:#273341;
+  --accent:#3cc4bb; --accent-ink:#06201e; --ok:#4cc38a; --warn:#e3b341; --bad:#ff7b72; --bad-bg:#3a1b1a; --ok-bg:#12301f; --warn-bg:#33290d;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding:env(safe-area-inset-top) max(16px,env(safe-area-inset-right)) env(safe-area-inset-bottom) max(16px,env(safe-area-inset-left))}
+main{max-width:1100px;margin:0 auto;padding:16px 0 48px}
+h1{font-size:1.15rem;margin:0;letter-spacing:.01em}
+h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 10px;font-weight:600}
+.top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 0 14px}
+.top .grow{flex:1}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--surface2);color:var(--muted);white-space:nowrap}
+.pill.ok{background:var(--ok-bg);color:var(--ok)} .pill.warn{background:var(--warn-bg);color:var(--warn)} .pill.bad{background:var(--bad-bg);color:var(--bad)}
+.dot{width:8px;height:8px;border-radius:50%;background:currentColor;display:inline-block}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:var(--pad)}
+.grid{display:grid;gap:12px}
+.accts{grid-template-columns:1fr;margin-bottom:12px}
+@media (min-width:760px){.accts{grid-template-columns:1fr 1fr}}
+.accts h2{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.big{font-size:1.9rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15}
+.kpis{grid-template-columns:repeat(2,1fr)}
+@media (min-width:760px){.kpis{grid-template-columns:repeat(4,1fr)}}
+.kpi .v{font-size:1.55rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15;margin-top:2px}
+.kpi .s{font-size:.8rem;color:var(--muted);margin-top:2px}
+.pos{color:var(--ok)} .neg{color:var(--bad)}
+.cols{grid-template-columns:1fr;margin-top:12px}
+@media (min-width:900px){.cols{grid-template-columns:1.4fr 1fr}}
+.stack{display:grid;gap:12px;align-content:start}
+.status{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.status li{display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:.95rem}
+.status .k{color:var(--muted)}
+svg.spark{width:100%;height:84px;display:block}
+.trades{list-style:none;margin:0;padding:0}
+.trade{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:10px 0;border-top:1px solid var(--line)}
+.trade:first-child{border-top:0}
+.trade .a{font-weight:600} .trade .b{color:var(--muted);font-size:.82rem} .trade .r{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.trade .st{font-size:.75rem;color:var(--muted);text-align:right}
+.empty{color:var(--muted);font-size:.92rem;padding:6px 0}
+.rej,.ev{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:.92rem}
+.rej li{display:flex;justify-content:space-between;gap:10px} .rej .n{font-variant-numeric:tabular-nums;color:var(--muted)}
+.ev li{display:grid;gap:0} .ev .t{font-size:.76rem;color:var(--muted)}
+button{font:inherit;cursor:pointer;border-radius:10px;border:1px solid var(--line);background:var(--surface2);color:var(--text);padding:10px 14px;min-height:44px}
+button.danger{background:var(--bad);border-color:var(--bad);color:#fff;font-weight:700}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+input{font:inherit;width:100%;min-height:44px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--text)}
+.banner{display:none;margin:0 0 12px;padding:10px 14px;border-radius:10px;background:var(--warn-bg);color:var(--warn);font-size:.9rem}
+.banner.show{display:block}
+.killbar{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.killbar p{margin:0;color:var(--muted);font-size:.88rem;flex:1;min-width:200px}
+#login{max-width:420px;margin:12vh auto 0}
+#login form{display:grid;gap:12px}
+#login p{margin:0;color:var(--muted);font-size:.92rem}
+.err{color:var(--bad);font-size:.9rem;min-height:1.2em}
+dialog{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);color:var(--text);max-width:420px;width:calc(100% - 32px);padding:20px}
+dialog::backdrop{background:rgba(0,0,0,.55)}
+dialog form{display:grid;gap:12px} dialog p{margin:0}
+.row{display:flex;gap:10px;justify-content:flex-end}
+.hidden{display:none !important}
+.fit{width:max-content}
+footer{margin-top:18px;color:var(--muted);font-size:.78rem;text-align:center}
+</style>
+</head>
+<body>
+<main>
+  <section id="login" class="card hidden" aria-labelledby="lt">
+    <h1 id="lt">BoTrade Console</h1>
+    <form id="loginForm" autocomplete="off">
+      <p>Enter the admin token. It stays in this browser tab only and is cleared when you close it.</p>
+      <label for="tok" class="pill fit">Admin token</label>
+      <input id="tok" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" required>
+      <div class="err" id="loginErr" role="alert"></div>
+      <button class="primary" type="submit">Sign in</button>
+    </form>
+  </section>
+
+  <div id="app" class="hidden">
+    <div class="top">
+      <h1>BoTrade</h1>
+      <span class="pill ok" id="modePill"><span class="dot"></span>DEMO ACCOUNT</span>
+      <span class="grow"></span>
+      <span class="pill" id="live"><span class="dot"></span><span id="liveText">connecting</span></span>
+      <button id="signout" type="button">Sign out</button>
+    </div>
+    <div class="banner" id="banner" role="status"></div>
+
+    <div class="grid accts" id="accts">
+      <div class="card"><h2>Real account <span class="pill warn">view only, trading locked</span></h2><div class="v big" id="realBal">-</div><div class="s" id="realSub">&nbsp;</div></div>
+      <div class="card"><h2>Demo account <span class="pill ok">bot trades here</span></h2><div class="v big" id="demoBal">-</div><div class="s" id="demoSub">&nbsp;</div></div>
+    </div>
+
+    <div class="grid kpis">
+      <div class="card kpi"><h2>Trades today</h2><div class="v" id="bal">-</div><div class="s" id="balSub">&nbsp;</div></div>
+      <div class="card kpi"><h2>Today P&amp;L</h2><div class="v" id="pnl">-</div><div class="s" id="pnlSub">&nbsp;</div></div>
+      <div class="card kpi"><h2>Win rate today</h2><div class="v" id="wr">-</div><div class="s" id="wrSub">&nbsp;</div></div>
+      <div class="card kpi"><h2>Open exposure</h2><div class="v" id="expo">-</div><div class="s">trades not yet resolved</div></div>
+    </div>
+
+    <div class="grid cols">
+      <div class="stack">
+        <div class="card"><h2>Balance trend</h2><svg class="spark" id="spark" viewBox="0 0 300 84" preserveAspectRatio="none" role="img" aria-label="Balance trend"></svg><div class="s empty hidden" id="sparkEmpty">No balance history yet.</div></div>
+        <div class="card"><h2>Recent trades</h2><ul class="trades" id="trades"></ul></div>
+      </div>
+      <div class="stack">
+        <div class="card"><h2>System</h2>
+          <ul class="status">
+            <li><span class="k">Deriv session</span><span class="pill" id="sSession">-</span></li>
+            <li><span class="k">Kill switch</span><span class="pill" id="sKill">-</span></li>
+            <li><span class="k">Last reconcile</span><span class="pill" id="sRecon">-</span></li>
+            <li><span class="k">Market data</span><span class="pill" id="sTick">-</span></li>
+            <li><span class="k">Strategies</span><span class="pill" id="sSig">-</span></li>
+          </ul>
+        </div>
+        <div class="card"><h2>Risk rejections today</h2><ul class="rej" id="rej"></ul></div>
+        <div class="card"><h2>Kill switch events</h2><ul class="ev" id="ev"></ul></div>
+        <div class="card killbar">
+          <p>Stops all new trades immediately. Releasing it is done on the server with <code>scripts/opsctl.sh release</code>, never from this page.</p>
+          <button class="danger" id="killBtn" type="button">Engage kill switch</button>
+        </div>
+      </div>
+    </div>
+    <footer id="foot">Read only except the kill switch. Real-money trading is locked in this build.</footer>
+  </div>
+
+  <dialog id="killDlg" aria-labelledby="kt">
+    <form method="dialog" id="killForm">
+      <h1 id="kt">Engage the kill switch?</h1>
+      <p>No new trade will be placed until it is released on the server. Type <b>KILL</b> to confirm.</p>
+      <input id="killConfirm" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Type KILL to confirm">
+      <div class="err" id="killErr" role="alert"></div>
+      <div class="row"><button type="button" id="killCancel">Cancel</button><button class="danger" type="submit" id="killGo">Engage</button></div>
+    </form>
+  </dialog>
+</main>
+<script>
+(function(){
+"use strict";
+var $=function(id){return document.getElementById(id)};
+var KEY="bt_token", token=null, timer=null, lastOk=0, REFRESH_MS=5000;
+try{token=sessionStorage.getItem(KEY)}catch(e){}
+
+function show(id,on){$(id).classList.toggle("hidden",!on)}
+function pill(el,cls,text){el.className="pill"+(cls?" "+cls:"");el.textContent=text}
+function money(v,cur){
+  if(v===null||v===undefined)return "-";
+  try{return new Intl.NumberFormat(undefined,{style:"currency",currency:cur||"USD"}).format(v)}catch(e){return v.toFixed(2)+" "+(cur||"")}
+}
+function signed(v,cur){if(v===null||v===undefined)return "-";return (v>0?"+":"")+money(v,cur)}
+function ago(iso){
+  if(!iso)return "never";
+  var s=Math.max(0,Math.round((Date.now()-Date.parse(iso))/1000));
+  if(s<60)return s+"s ago"; if(s<3600)return Math.round(s/60)+"m ago"; if(s<86400)return Math.round(s/3600)+"h ago";
+  return Math.round(s/86400)+"d ago";
+}
+function secs(s){if(s===null||s===undefined)return "never";if(s<90)return Math.round(s)+"s ago";return Math.round(s/60)+"m ago"}
+function clear(el){while(el.firstChild)el.removeChild(el.firstChild)}
+function li(cls){var e=document.createElement("li");if(cls)e.className=cls;return e}
+function div(cls,text){var e=document.createElement("div");if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e}
+
+function api(path,opts){
+  opts=opts||{};opts.headers=Object.assign({"Authorization":"Bearer "+token},opts.headers||{});opts.cache="no-store";
+  return fetch(path,opts);
+}
+
+function setLive(state,text){
+  var el=$("live");pill(el,state,"");var d=document.createElement("span");d.className="dot";el.appendChild(d);
+  var t=document.createElement("span");t.id="liveText";t.textContent=text;el.appendChild(t);
+}
+
+function spark(points){
+  var svg=$("spark");while(svg.firstChild)svg.removeChild(svg.firstChild);
+  var ok=points&&points.length>=2;$("sparkEmpty").classList.toggle("hidden",!!ok);svg.classList.toggle("hidden",!ok);
+  if(!ok)return;
+  var min=Math.min.apply(null,points),max=Math.max.apply(null,points),rng=(max-min)||1,W=300,H=84,P=6;
+  var pts=points.map(function(v,i){return (i*(W/(points.length-1))).toFixed(1)+","+(H-P-((v-min)/rng)*(H-2*P)).toFixed(1)}).join(" ");
+  var ns="http://www.w3.org/2000/svg",line=document.createElementNS(ns,"polyline");
+  line.setAttribute("points",pts);line.setAttribute("fill","none");line.setAttribute("stroke","currentColor");
+  line.setAttribute("stroke-width","2");line.setAttribute("vector-effect","non-scaling-stroke");
+  line.setAttribute("stroke-linejoin","round");svg.appendChild(line);
+  svg.style.color=points[points.length-1]>=points[0]?"var(--ok)":"var(--bad)";
+}
+
+function renderAccounts(a){
+  function one(kind,balId,subId){
+    var x=a&&a[kind];
+    $(balId).textContent=x&&x.balance!==null&&x.balance!==undefined?money(x.balance,x.currency||"USD"):"-";
+    $(subId).textContent=!a?"not available":(x?(x.status||"status unknown"):"no "+kind+" account found")+(a.error?" - last refresh failed ("+a.error+")":"");
+  }
+  one("real","realBal","realSub");one("demo","demoBal","demoSub");
+}
+
+function render(d){
+  renderAccounts(d.accounts);
+  var cur=d.balance&&d.balance.currency||"USD";
+  var live=d.live_balance;
+  var bv=live&&live.value!==null&&live.value!==undefined?live.value:(d.balance?d.balance.value:null);
+  var delta=(bv!==null&&d.balance_day_start!==null&&d.balance_day_start!==undefined)?bv-d.balance_day_start:null;
+  if(delta!==null)$("demoSub").textContent=signed(delta,cur)+" since midnight UTC";
+  var t=d.today||{};
+  var states=t.intent_states||{},total=0,rej=states.RISK_REJECTED||0;Object.keys(states).forEach(function(k){total+=states[k]});
+  $("bal").textContent=String(total);$("balSub").textContent=rej+" stopped by risk checks";
+  var p=$("pnl");p.textContent=signed(t.pnl,cur);p.className="v "+(t.pnl>0?"pos":t.pnl<0?"neg":"");
+  $("pnlSub").textContent=(t.settled||0)+" settled trade"+((t.settled===1)?"":"s");
+  $("wr").textContent=t.win_rate===null||t.win_rate===undefined?"-":Math.round(t.win_rate*100)+"%";
+  $("wrSub").textContent=(t.wins||0)+" won, "+(t.losses||0)+" lost";
+  $("expo").textContent=String(d.open_exposure||0);
+  spark(d.equity_curve);
+
+  var ul=$("trades");clear(ul);
+  if(!d.recent_trades||!d.recent_trades.length){var e=li();e.appendChild(div("empty","No trades yet. None are expected until a strategy is approved."));ul.appendChild(e)}
+  else d.recent_trades.forEach(function(x){
+    var r=li("trade");
+    r.appendChild(div("a",x.symbol+" "+x.type));
+    var pr=div("r"+(x.profit>0?" pos":x.profit<0?" neg":""),x.profit===null||x.profit===undefined?money(x.stake,cur):signed(x.profit,cur));r.appendChild(pr);
+    r.appendChild(div("b","stake "+money(x.stake,cur)+" - "+ago(x.time)));
+    r.appendChild(div("st",x.state.replace(/_/g," ").toLowerCase()));
+    ul.appendChild(r);
+  });
+
+  var rj=$("rej");clear(rj);var names=Object.keys(d.risk_rejections_today||{});
+  if(!names.length){var e2=li();e2.appendChild(div("empty","None today."));rj.appendChild(e2)}
+  names.forEach(function(n){var r=li();var a=document.createElement("span");a.textContent=n.replace(/_/g," ");var b=document.createElement("span");b.className="n";b.textContent=String(d.risk_rejections_today[n]);r.appendChild(a);r.appendChild(b);rj.appendChild(r)});
+
+  var ev=$("ev");clear(ev);
+  if(!d.recent_events||!d.recent_events.length){var e3=li();e3.appendChild(div("empty","No events."));ev.appendChild(e3)}
+  else d.recent_events.forEach(function(x){var r=li();r.appendChild(div("",x.text));r.appendChild(div("t",ago(x.time)));ev.appendChild(r)});
+
+  var ks=d.kill_switch||{};
+  pill($("sSession"),d.session_connected?"ok":"bad",d.session_connected?"connected":"not connected");
+  pill($("sKill"),ks.engaged?"bad":"ok",ks.engaged?"ENGAGED":"clear");
+  var ra=d.reconcile_age_s;pill($("sRecon"),ra===null||ra===undefined?"warn":(ra>120?"warn":"ok"),secs(ra));
+  var ta=d.tick_age_s;pill($("sTick"),ta===null||ta===undefined?"warn":(ta>10?"warn":"ok"),ta===null||ta===undefined?"no ticks":secs(ta));
+  pill($("sSig"),d.signals==="on"?"ok":"",d.signals==="on"?"running":"off, none approved");
+  var bn=$("banner"),msg=[];
+  if(ks.engaged)msg.push("Kill switch is engaged: no new trades.");
+  if(d.last_session_error)msg.push("Last session problem: "+d.last_session_error);
+  bn.textContent=msg.join(" ");bn.classList.toggle("show",msg.length>0);
+  $("killBtn").disabled=!!ks.engaged;
+}
+
+function tick(){
+  api("/api/summary").then(function(r){
+    if(r.status===401){signOut("Token rejected. Sign in again.");return null}
+    if(r.status===503){signOut("The server has no admin token configured.");return null}
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    return r.json();
+  }).then(function(d){
+    if(!d)return;lastOk=Date.now();render(d);setLive("ok","live, "+new Date().toLocaleTimeString());
+  }).catch(function(){
+    var age=lastOk?Math.round((Date.now()-lastOk)/1000):null;
+    setLive("bad","offline"+(age!==null?", data "+age+"s old":""));
+  });
+}
+
+function start(){show("login",false);show("app",true);tick();clearInterval(timer);timer=setInterval(function(){if(!document.hidden)tick()},REFRESH_MS)}
+function signOut(msg){
+  try{sessionStorage.removeItem(KEY)}catch(e){}
+  token=null;clearInterval(timer);show("app",false);show("login",true);$("loginErr").textContent=msg||"";$("tok").value="";
+}
+
+$("loginForm").addEventListener("submit",function(ev){
+  ev.preventDefault();var v=$("tok").value.trim();if(!v)return;token=v;$("tok").value="";
+  try{sessionStorage.setItem(KEY,token)}catch(e){}
+  $("loginErr").textContent="";start();
+});
+$("signout").addEventListener("click",function(){signOut("")});
+document.addEventListener("visibilitychange",function(){if(!document.hidden&&token)tick()});
+
+var dlg=$("killDlg");
+$("killBtn").addEventListener("click",function(){$("killConfirm").value="";$("killErr").textContent="";if(dlg.showModal)dlg.showModal();else dlg.setAttribute("open","")});
+$("killCancel").addEventListener("click",function(){dlg.close()});
+$("killForm").addEventListener("submit",function(ev){
+  ev.preventDefault();
+  if($("killConfirm").value.trim().toUpperCase()!=="KILL"){$("killErr").textContent="Type KILL exactly to confirm.";return}
+  $("killGo").disabled=true;
+  api("/kill",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({reason:"dashboard"})})
+    .then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);dlg.close();tick()})
+    .catch(function(){$("killErr").textContent="Could not reach the server. Try again, or use scripts/opsctl.sh kill on the VM."})
+    .then(function(){$("killGo").disabled=false});
+});
+
+if(token)start();else show("login",true);
+})();
+</script>
+</body>
+</html>

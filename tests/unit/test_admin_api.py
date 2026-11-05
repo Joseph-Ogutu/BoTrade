@@ -95,4 +95,6 @@ def test_binding_to_anything_but_localhost_is_refused():
 def test_admin_api_has_no_route_that_could_touch_trading_mode(env):
     ks, c = env
     paths = {r.path for r in c.app.routes}
-    assert paths == {"/health", "/status", "/kill", "/release"}
+    # /ui (static shell, no data) and /api/summary (read-only, bearer) were added with the dashboard on 2026-11-05.
+    # Nothing here can change the trading mode, a setting or a credential; any further route must update this list on purpose.
+    assert paths == {"/health", "/status", "/kill", "/release", "/ui", "/api/summary"}

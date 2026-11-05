@@ -3,7 +3,7 @@
 # Hard-coded on purpose, not read from any env file: TRADING_MODE=demo, ALLOW_REAL_TRADING=false. Real trading is also
 # locked in code (REAL_TRADING_IMPLEMENTED=False) and by a database CHECK, so editing this file cannot enable it.
 # Secrets are files under ./secrets (git-ignored), created by scripts/init_secrets.sh, mounted at /run/secrets.
-# No service publishes a port. The admin API listens on 127.0.0.1 inside the bot container; use scripts/opsctl.sh.
+# Only the bot publishes a port, and only on the HOST loopback (127.0.0.1:8787, admin API and dashboard, bearer token).
 name: derivbot
 
 x-logging: &logging
@@ -113,11 +113,16 @@ services:
       TELEGRAM_ALLOWED_CHAT_IDS: ${TELEGRAM_ALLOWED_CHAT_IDS:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       KILL_SWITCH_PATH: /state/KILL_SWITCH
+      ADMIN_API_BIND: container
       TZ: UTC
     secrets: [postgres_password, redis_password, deriv_pat_demo, telegram_bot_token, admin_api_token]
     volumes:
       - botstate:/state          # kill flag file: survives container recreation
     tmpfs: [/tmp]
+    # The admin API and dashboard listen on all interfaces INSIDE the container (ADMIN_API_BIND) and are published on the
+    # HOST's loopback only. Reach them with an SSH tunnel: ssh -L 8787:127.0.0.1:8787 deploy@<host>, then open /ui.
+    ports:
+      - "127.0.0.1:8787:8787"
     networks: [backend, egress]
     mem_limit: 512m
     pids_limit: 200

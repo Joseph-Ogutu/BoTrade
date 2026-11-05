@@ -269,3 +269,23 @@ docker compose --env-file vm.env -f docker-compose.yml -f docker-compose.lowmem.
 Update: re-run `git archive` over the old tree, then the same `up -d --build`. Status: `bash scripts/opsctl.sh status` on the VM (it needs `docker compose` to find the same files, so run it from /opt/derivbot). `vm.env` is not tracked and holds no secret, only the App ID and the demo account id.
 
 Found while bringing the stack up for the first time: the redis service needed `user: 999:1000`, and a variable named `KILL_SWITCH_FILE` was misread as a secret reference (now `KILL_SWITCH_PATH`). Both are fixed and tested.
+
+
+### 12.8 The dashboard (private, through an SSH tunnel)
+
+The admin API also serves a dashboard at `/ui`. It is a single page with no external files, designed for phone and laptop. It shows the real account balance (VIEW ONLY, trading locked), the demo balance, today's P&L, win rate, open exposure, recent trades, risk rejections, system health and kill switch events. The only action is "Engage kill switch" (type KILL to confirm). Releasing the kill switch is never on the page: use `scripts/opsctl.sh release "reason"` on the VM.
+
+Access, with nothing opened to the internet: the bot publishes port 8787 on the VM's loopback only.
+
+```bash
+ssh -i ~/.ssh/<key> -L 8787:127.0.0.1:8787 deploy@<host>     # keep this running
+# then open http://127.0.0.1:8787/ui in a browser on the same machine and sign in with the admin token
+```
+
+The admin token is the file `/opt/derivbot/secrets/admin_api_token` on the VM. Print it once on the VM with `cat` in your own terminal and paste it into the page; the page keeps it in that tab only. On a phone the same tunnel works with an SSH app that supports port forwarding; a public name with HTTPS and a second factor is a separate, not yet built step.
+
+What the page can see: balances of both accounts through ONE read-only GET to `/trading/v1/options/accounts` with the demo token (cached 30 s). It cannot open a session on the real account and has no write call. Content-Security-Policy: only the page's own script and style by hash, no external resources, no framing.
+
+### 12.9 Postgres backup timer (on the VM)
+
+`deploy/derivbot-pgbackup.service` and `.timer` run `scripts/pg_backup.sh` daily at 03:30 UTC as `deploy`, keep the newest 14 dumps in `/opt/derivbot/data/pg-backups`, and verify each dump. There is NO off-host copy until you set `OFFHOST_REMOTE` and rclone; a lost VM loses these backups too. Install: copy the two files to `/etc/systemd/system/`, then `sudo systemctl daemon-reload && sudo systemctl enable --now derivbot-pgbackup.timer`.

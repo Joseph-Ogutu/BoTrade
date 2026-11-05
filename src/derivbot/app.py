@@ -15,6 +15,7 @@ authenticated behaviour is UNVERIFIED until demo credentials exist.
 from __future__ import annotations
 
 import asyncio
+import datetime as dt
 import logging
 import os
 import signal
@@ -28,7 +29,7 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import Engine, text
 
-from derivbot.api.app import create_app
+from derivbot.api.app import CONTAINER_BIND, create_app, validate_bind_host
 from derivbot.backtest.permit import RealDataNotApproved, require_real_data_approval
 from derivbot.common.logs import setup_logging
 from derivbot.config.risk import load_risk_config, load_strategy_approvals
@@ -101,7 +102,10 @@ class App:
     notes: list[str] = field(default_factory=list)
 
     def status(self) -> dict[str, Any]:
-        return {"mode": "demo", "session_connected": bool(self.supervisor and self.supervisor.session),
+        info = self.verifier.get_info()
+        return {"live_balance": None if info.balance is None else {"value": float(info.balance), "currency": info.currency},
+                "tick_age_s": self.fresh.age(SYMBOLS[0]),
+                "mode": "demo", "session_connected": bool(self.supervisor and self.supervisor.session),
                 "connects": self.supervisor.connects if self.supervisor else 0,
                 "last_session_error": self.supervisor.last_error if self.supervisor else None,
                 "reconcile_age_s": self.reconciler.age_s(), "signals": "on" if self.signal_runner else "off",
@@ -188,8 +192,22 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
         notes.append(f"signals off: real-data use not approved ({exc})")
 
     app_box: dict[str, App] = {}
+    accounts_view = None
+    if settings.deriv_app_id_demo and settings.deriv_pat_demo:
+        from derivbot.api.accounts_view import AccountsView
+
+        accounts_view = AccountsView(settings.deriv_app_id_demo, settings.deriv_pat_demo.get_secret_value())
+
+    def summary() -> dict:
+        from derivbot.api.dashboard import build_summary
+
+        with engine.connect() as conn:
+            out = build_summary(conn, dt.datetime.now(dt.UTC))
+        out["accounts"] = accounts_view.get() if accounts_view else None
+        return out
+
     api = create_app(ks, settings.admin_api_token.get_secret_value() if settings.admin_api_token else None,
-                     lambda: app_box["a"].status())
+                     lambda: app_box["a"].status(), summary)
     cmds = TelegramCommands(ks, set(chat_ids), lambda: app_box["a"].status(), on_unauthorized=lambda c, t: log.warning("telegram: unlisted chat"))
     poller = TelegramPoller(transport, cmds) if (settings.telegram_bot_token and chat_ids) else None
     hb = Heartbeater(HeartbeatKV(kv, ttl_s=60), "bot", notifier, lambda: {"signals": "on" if runner else "off"}, interval_s=10)
@@ -213,7 +231,9 @@ def _on_balance(verifier: DemoConnectionVerifier, raw: dict) -> None:
 async def run(app: App, halt: asyncio.Event, api_port: int = 8787) -> None:
     import uvicorn
 
-    server = uvicorn.Server(uvicorn.Config(app.api, host="127.0.0.1", port=api_port, log_level="warning"))
+    host = validate_bind_host(CONTAINER_BIND if os.environ.get("ADMIN_API_BIND") == "container" else "127.0.0.1",
+                              container=os.environ.get("ADMIN_API_BIND") == "container")
+    server = uvicorn.Server(uvicorn.Config(app.api, host=host, port=api_port, log_level="warning"))
     tasks = [asyncio.create_task(c, name=n) for n, c in [
         ("api", server.serve()), ("flag_file", watch_flag_file(app.kill_switch, halt)), ("notifier", app.notifier.run(halt)),
         ("heartbeat", app.heartbeater.run(halt)), ("reconcile", app.reconciler.run_periodic(halt)),

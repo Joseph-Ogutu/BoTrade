@@ -44,7 +44,11 @@ Defence layers (all must hold independently): build lock `REAL_TRADING_IMPLEMENT
 - `scripts/init_secrets.sh` makes files mode 0644 inside a 0700 directory so non-root containers can read them. Judge whether that is acceptable; propose better if not.
 - A file named "Ogutu Bot API TOKEN pat.txt" exists in the OLD bot's directory (outside this repository, untracked). Confirm it is not in this repository or its history, and advise on rotating that token if it was ever exposed.
 
-### C. Admin surface
+### C. Admin surface and dashboard
+- The admin API now also serves a dashboard (`src/derivbot/api/static/dashboard.html`, `api/dashboard.py`, `api/accounts_view.py`). In the container it binds all interfaces ONLY when `ADMIN_API_BIND=container` is set, and compose publishes it on the host loopback only (`127.0.0.1:8787`). Judge whether another container on the `backend` or `egress` networks could reach it (bearer token still required) and whether that is acceptable.
+- `accounts_view.py` makes one read-only GET to the accounts list with the DEMO token and returns the REAL account's balance. Check it cannot be steered to another path, that account ids never reach the page, and that the real account is never used for OTP, WebSocket or any write. A Trade-scope token can see the real account (OBSERVED), so confirm no other code path could act on it.
+- Page: strict Content-Security-Policy by hash, no inline handlers or styles, no innerHTML, token in sessionStorage only, the only write is the kill switch, release is not offered. Try XSS through any field that originates from the database or the exchange (symbols, states, reason text).
+
 - Bearer comparison: constant time? Behavior with no token configured (503)? Brute-force exposure?
 - Bind validation to 127.0.0.1 or ::1 only; verify from the container network that the port is not reachable from other containers on `backend` (it should not be: loopback inside the bot container).
 - Telegram: allowlist, exact command match, no release or setting change available.

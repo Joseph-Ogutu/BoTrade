@@ -1,0 +1,11 @@
+[Unit]
+Description=derivbot Postgres backup (pg_dump, verified, local retention)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=deploy
+WorkingDirectory=/opt/derivbot
+Environment=KEEP_LOCAL=14
+ExecStart=/opt/derivbot/scripts/pg_backup.sh
