@@ -106,6 +106,8 @@ class App:
         info = self.verifier.get_info()
         return {"live_balance": None if info.balance is None else {"value": float(info.balance), "currency": info.currency},
                 "tick_age_s": self.fresh.age(SYMBOLS[0]),
+                "ticks": {s: {"quote": self.fresh.last_tick[s][0], "epoch": self.fresh.last_tick[s][1], "age_s": self.fresh.age(s)}
+                          for s in SYMBOLS if s in self.fresh.last_tick},
                 "mode": "demo", "session_connected": bool(self.supervisor and self.supervisor.session),
                 "connects": self.supervisor.connects if self.supervisor else 0,
                 "last_session_error": self.supervisor.last_error if self.supervisor else None,
@@ -197,7 +199,7 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
     if settings.deriv_app_id_demo and settings.deriv_pat_demo:
         from derivbot.api.accounts_view import AccountsView
 
-        accounts_view = AccountsView(settings.deriv_app_id_demo, settings.deriv_pat_demo.get_secret_value())
+        accounts_view = AccountsView(settings.deriv_app_id_demo, settings.deriv_pat_demo.get_secret_value(), ttl_s=15.0)
 
     def summary() -> dict:
         from derivbot.api.dashboard import build_summary

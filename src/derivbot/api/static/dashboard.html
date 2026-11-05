@@ -40,6 +40,12 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--mu
 @media (min-width:760px){.accts{grid-template-columns:1fr 1fr}}
 .accts h2{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .big{font-size:1.9rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15}
+.mkts{grid-template-columns:repeat(2,1fr);margin-bottom:12px}
+.mkt{display:grid;gap:2px}
+.mkt .sym{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.mkt .px{font-size:1.45rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15}
+.mkt .px.up{color:var(--ok)} .mkt .px.down{color:var(--bad)}
+.mkt .age{font-size:.78rem;color:var(--muted)}
 .kpis{grid-template-columns:repeat(2,1fr)}
 @media (min-width:760px){.kpis{grid-template-columns:repeat(4,1fr)}}
 .kpi .v{font-size:1.55rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15;margin-top:2px}
@@ -110,6 +116,8 @@ footer{margin-top:18px;color:var(--muted);font-size:.78rem;text-align:center}
       <div class="card"><h2>Real account <span class="pill warn">view only, trading locked</span></h2><div class="v big" id="realBal">-</div><div class="s" id="realSub">&nbsp;</div></div>
       <div class="card"><h2>Demo account <span class="pill ok">bot trades here</span></h2><div class="v big" id="demoBal">-</div><div class="s" id="demoSub">&nbsp;</div></div>
     </div>
+
+    <div class="grid mkts" id="mkts" aria-live="off"></div>
 
     <div class="grid kpis">
       <div class="card kpi"><h2>Trades today</h2><div class="v" id="bal">-</div><div class="s" id="balSub">&nbsp;</div></div>
@@ -260,6 +268,38 @@ function render(d){
   $("killBtn").disabled=!!ks.engaged;
 }
 
+var prevPx={};
+function renderLive(d){
+  var box=$("mkts");clear(box);
+  var syms=Object.keys(d.ticks||{});
+  syms.forEach(function(s){
+    var t=d.ticks[s],card=div("card mkt"),px=div("px",t.quote),dir="";
+    var cur=parseFloat(t.quote),old=prevPx[s];
+    if(old!==undefined&&cur!==old)dir=cur>old?" up":" down";
+    if(old!==undefined&&cur===old)dir=prevPx[s+"d"]||"";
+    prevPx[s]=cur;prevPx[s+"d"]=dir;px.className="px"+dir;
+    card.appendChild(div("sym",s));card.appendChild(px);
+    card.appendChild(div("age",t.age_s===null||t.age_s===undefined?"":(t.age_s<2?"live":t.age_s.toFixed(0)+"s old")));
+    box.appendChild(card);
+  });
+  if(!syms.length)box.appendChild(div("card empty","Waiting for ticks."));
+  var ks=d.kill_switch||{};
+  pill($("sSession"),d.session_connected?"ok":"bad",d.session_connected?"connected":"not connected");
+  pill($("sKill"),ks.engaged?"bad":"ok",ks.engaged?"ENGAGED":"clear");
+  var ra=d.reconcile_age_s;pill($("sRecon"),ra===null||ra===undefined?"warn":(ra>120?"warn":"ok"),secs(ra));
+  var ta=d.tick_age_s;pill($("sTick"),ta===null||ta===undefined?"warn":(ta>10?"warn":"ok"),ta===null||ta===undefined?"no ticks":secs(ta));
+  $("killBtn").disabled=!!ks.engaged;
+  lastOk=Date.now();setLive("ok","live, "+new Date().toLocaleTimeString());
+}
+function pollLive(){
+  api("/status").then(function(r){
+    if(r.status===401){signOut("Token rejected. Sign in again.");return null}
+    if(!r.ok)throw new Error("HTTP "+r.status);return r.json();
+  }).then(function(d){if(d)renderLive(d)}).catch(function(){
+    var age=lastOk?Math.round((Date.now()-lastOk)/1000):null;setLive("bad","offline"+(age!==null?", data "+age+"s old":""));
+  });
+}
+
 function tick(){
   api("/api/summary").then(function(r){
     if(r.status===401){signOut("Token rejected. Sign in again.");return null}
@@ -274,10 +314,15 @@ function tick(){
   });
 }
 
-function start(){show("login",false);show("app",true);tick();clearInterval(timer);timer=setInterval(function(){if(!document.hidden)tick()},REFRESH_MS)}
+var liveTimer=null;
+function start(){
+  show("login",false);show("app",true);tick();pollLive();clearInterval(timer);clearInterval(liveTimer);
+  timer=setInterval(function(){if(!document.hidden)tick()},REFRESH_MS);
+  liveTimer=setInterval(function(){if(!document.hidden)pollLive()},1000);
+}
 function signOut(msg){
   try{sessionStorage.removeItem(KEY)}catch(e){}
-  token=null;clearInterval(timer);show("app",false);show("login",true);$("loginErr").textContent=msg||"";$("tok").value="";
+  token=null;clearInterval(timer);clearInterval(liveTimer);show("app",false);show("login",true);$("loginErr").textContent=msg||"";$("tok").value="";
 }
 
 $("loginForm").addEventListener("submit",function(ev){
@@ -286,7 +331,7 @@ $("loginForm").addEventListener("submit",function(ev){
   $("loginErr").textContent="";start();
 });
 $("signout").addEventListener("click",function(){signOut("")});
-document.addEventListener("visibilitychange",function(){if(!document.hidden&&token)tick()});
+document.addEventListener("visibilitychange",function(){if(!document.hidden&&token){tick();pollLive()}});
 
 var dlg=$("killDlg");
 $("killBtn").addEventListener("click",function(){$("killConfirm").value="";$("killErr").textContent="";if(dlg.showModal)dlg.showModal();else dlg.setAttribute("open","")});

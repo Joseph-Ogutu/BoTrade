@@ -145,3 +145,11 @@ def test_the_runner_digit_keeps_the_trailing_zero():
     r.on_tick(m.Tick(symbol="1HZ100V", epoch=1, quote=D("1310.7"), pip_size=2))       # arrives as 1310.7 but is 1310.70
     r.on_tick(m.Tick(symbol="1HZ100V", epoch=2, quote=D("1310.75"), pip_size=2))
     assert seen == [0, 5]
+
+
+def test_last_tick_keeps_the_quote_at_exactly_pip_size_decimals_for_display():
+    f = TickFreshness(["1HZ100V"])
+    f.handle(tick_msg(epoch=5, quote="1310.70"))
+    assert f.last_tick["1HZ100V"] == ("1310.70", 5, 2)         # the trailing zero is kept (it is the last digit)
+    f.handle(tick_msg(epoch=6, quote="1310"))
+    assert f.last_tick["1HZ100V"][0] == "1310.00"

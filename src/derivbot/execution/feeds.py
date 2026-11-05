@@ -33,6 +33,7 @@ class TickFreshness:
     def __init__(self, symbols: list[str], clock: Callable[[], float] = time.time, kv=None) -> None:
         self.symbols, self._clock, self._kv = list(symbols), clock, kv
         self.last_seen: dict[str, float] = {}
+        self.last_tick: dict[str, tuple[str, int, int]] = {}       # symbol -> (quote text at pip_size decimals, epoch, pip_size)
         self._sinks: list[Callable[[m.Tick], object]] = []
 
     def add_sink(self, fn: Callable[[m.Tick], object]) -> None:
@@ -45,6 +46,7 @@ class TickFreshness:
             return
         if isinstance(msg, m.TickMsg):
             self.last_seen[msg.tick.symbol] = self._clock()
+            self.last_tick[msg.tick.symbol] = (f"{msg.tick.quote:.{msg.tick.pip_size}f}", msg.tick.epoch, msg.tick.pip_size)
             if self._kv is not None:
                 try:
                     self._kv.set(f"tick:last:{msg.tick.symbol}", str(msg.tick.epoch), 3600)

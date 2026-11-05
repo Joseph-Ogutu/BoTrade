@@ -52,7 +52,7 @@ def test_page_has_no_external_resources_no_inline_handlers_and_no_unsafe_dom_wri
 def test_the_page_offers_no_release_and_the_only_write_is_the_kill_switch():
     js = re.search(r"<script>(.*?)</script>", HTML, re.S).group(1)
     assert "/release" not in js
-    assert re.findall(r"api\(\"([^\"]+)\"", js) == ["/api/summary", "/kill"]
+    assert re.findall(r"api\(\"([^\"]+)\"", js) == ["/status", "/api/summary", "/kill"]
     assert re.findall(r"method:\"([A-Z]+)\"", js) == ["POST"]
 
 
