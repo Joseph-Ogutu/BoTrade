@@ -1,0 +1,14 @@
+# Overlay for a 1 GB host (Oracle VM.Standard.E2.1.Micro). Use together with 4 GB of swap (scripts/vps_swap.sh):
+#   docker compose -f docker-compose.yml -f docker-compose.lowmem.yml up -d --build
+# Only memory and Postgres tuning change. Nothing about safety (demo-only, no published ports, secrets) is touched.
+services:
+  postgres:
+    mem_limit: 256m
+    command: ["postgres", "-c", "timezone=UTC", "-c", "log_timezone=UTC", "-c", "listen_addresses=*",
+              "-c", "shared_buffers=48MB", "-c", "max_connections=20", "-c", "work_mem=2MB", "-c", "maintenance_work_mem=16MB"]
+  redis:
+    mem_limit: 64m
+  bot:
+    mem_limit: 256m
+  collector:
+    mem_limit: 128m
