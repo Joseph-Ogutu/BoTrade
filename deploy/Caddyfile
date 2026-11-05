@@ -1,0 +1,22 @@
+# Public HTTPS front for the dashboard. Only used with the compose profile "public".
+# Caddy obtains and renews the certificate by itself (needs ports 80 and 443 reachable from the internet).
+{$DASHBOARD_HOST:localhost} {
+	encode gzip
+
+	# The release endpoint of the admin API is never reachable from the internet. Release is done on the server only.
+	@private path /release /release/*
+	respond @private 404
+
+	redir / /ui 308
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	reverse_proxy bot:8787 {
+		# Overwrite, never append: a client cannot choose the address the lockout counts against.
+		header_up X-Forwarded-For {remote_host}
+		header_up -X-Real-IP
+	}
+}

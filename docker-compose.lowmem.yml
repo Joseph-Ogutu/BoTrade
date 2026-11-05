@@ -12,3 +12,5 @@ services:
     mem_limit: 256m
   collector:
     mem_limit: 128m
+  caddy:
+    mem_limit: 48m

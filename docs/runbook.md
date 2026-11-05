@@ -289,3 +289,12 @@ What the page can see: balances of both accounts through ONE read-only GET to `/
 ### 12.9 Postgres backup timer (on the VM)
 
 `deploy/derivbot-pgbackup.service` and `.timer` run `scripts/pg_backup.sh` daily at 03:30 UTC as `deploy`, keep the newest 14 dumps in `/opt/derivbot/data/pg-backups`, and verify each dump. There is NO off-host copy until you set `OFFHOST_REMOTE` and rclone; a lost VM loses these backups too. Install: copy the two files to `/etc/systemd/system/`, then `sudo systemctl daemon-reload && sudo systemctl enable --now derivbot-pgbackup.timer`.
+
+
+### 12.10 Public HTTPS for the dashboard (optional, compose profile `public`)
+
+`deploy/Caddyfile` plus the `caddy` service put the dashboard on `https://<DASHBOARD_HOST>`. Caddy gets and renews the certificate by itself. It is not started unless `COMPOSE_PROFILES=public` is set, and it is the only service that publishes ports 80 and 443. It proxies to the bot on the internal network, never exposes `/release` (answers 404), redirects `/` to `/ui`, sets HSTS, and OVERWRITES `X-Forwarded-For` with the address it saw, so a client cannot pick the address the lockout counts.
+
+Protection on the public page: a 256 bit random admin token (a long random string, never a password you chose), TLS, a lockout after 10 bad tokens from one address within 10 minutes (blocked 15 minutes, even for the right token), a strict Content-Security-Policy, no inline script or style, and one write action only (kill, type KILL to confirm). NOT present: a second factor, per-user accounts, or alerting on failed logins. Anyone who obtains the token can read balances and engage the kill switch; they cannot release it, change settings, or trade.
+
+Enable on the VM: set `COMPOSE_PROFILES=public` and `DASHBOARD_HOST=bot.josephogutu.com` in `vm.env`, open TCP 80 and 443 in the Oracle security list (ingress from 0.0.0.0/0), then `docker compose --env-file vm.env -f docker-compose.yml -f docker-compose.lowmem.yml up -d`. Docker publishes these ports through its own firewall chains, so the host `iptables` INPUT rules do not gate them: the Oracle security list is the gate. Disable by removing the profile and the two ingress rules.

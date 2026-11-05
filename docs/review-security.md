@@ -53,6 +53,10 @@ Defence layers (all must hold independently): build lock `REAL_TRADING_IMPLEMENT
 - Bind validation to 127.0.0.1 or ::1 only; verify from the container network that the port is not reachable from other containers on `backend` (it should not be: loopback inside the bot container).
 - Telegram: allowlist, exact command match, no release or setting change available.
 
+### C2. Public HTTPS front (optional profile)
+- `deploy/Caddyfile` and the `caddy` compose service expose the dashboard at a public name. Review: the lockout (`AuthLimiter`, `client_ip` in `api/app.py`) including whether the forwarded-address handling can be abused, the 404 on `/release`, that no other path of the admin API is reachable that should not be, TLS settings, the Caddy image pin, and the absence of a second factor (is a 256 bit token plus lockout acceptable for a page that can engage the kill switch and shows balances?).
+- Docker publishes ports through its own firewall chains: confirm the Oracle security list, not host iptables, is the real gate, and that only 80 and 443 are open.
+
 ### D. Database
 - Audit table is append-only through row triggers (UPDATE, DELETE) and a statement trigger (TRUNCATE). Can the application role bypass them (owner can disable triggers; consider a separate role)? The bot connects as the database owner today: judge and recommend.
 - SQL injection surface in `db/repo.py` and `audit.py` (all parameterised?).
