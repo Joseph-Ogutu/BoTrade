@@ -179,8 +179,7 @@ dialog form{display:grid;gap:12px} dialog h1{margin:0;font-size:1.1rem} dialog p
 @media (max-width:520px){
   #signout span{display:none} #signout{padding:0;width:40px}
   .bar .in{gap:8px} .brand span:last-child{font-size:.95rem}
-  #modePill{order:2} #live{order:3} #themeBtn{order:4} #signout{order:5} .sp{display:none}
-  .brand{margin-right:auto}
+  .sp{display:none} .brand{margin-right:auto}
 }
 /* ---------- motion ---------- */
 .flash{animation:fl .6s ease-out}
@@ -210,7 +209,6 @@ dialog form{display:grid;gap:12px} dialog h1{margin:0;font-size:1.1rem} dialog p
 <header class="bar hidden" id="bar">
   <div class="in">
     <div class="brand"><span class="logo"><svg viewBox="0 0 24 24"><path d="M4 16l5-5 4 4 7-8"/><path d="M15 7h5v5"/></svg></span><span>BoTrade</span></div>
-    <span class="chip acc" id="modePill"><svg class="ic sm"><use href="#i-shield"/></svg>DEMO</span>
     <span class="sp"></span>
     <span class="chip live" id="live"><span class="dot"></span><span id="liveText">connecting</span></span>
     <button type="button" class="icon" id="themeBtn" aria-label="Switch theme" title="Theme"><svg class="ic"><use href="#i-auto" id="themeUse"/></svg></button>
