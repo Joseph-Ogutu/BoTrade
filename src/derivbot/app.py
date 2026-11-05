@@ -209,8 +209,18 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
         out["accounts"] = accounts_view.get() if accounts_view else None
         return out
 
+    hash_file = Path(os.environ.get("DASHBOARD_PASSWORD_HASH_FILE", ""))
+
+    def password_hash() -> str | None:
+        """Read at each use, so a new password takes effect without a restart. An empty or missing file means no password."""
+        try:
+            value = hash_file.read_text().strip() if hash_file.name else ""
+        except OSError:
+            return None
+        return value or None
+
     api = create_app(ks, settings.admin_api_token.get_secret_value() if settings.admin_api_token else None,
-                     lambda: app_box["a"].status(), summary)
+                     lambda: app_box["a"].status(), summary, password_hash=password_hash)
     cmds = TelegramCommands(ks, set(chat_ids), lambda: app_box["a"].status(), on_unauthorized=lambda c, t: log.warning("telegram: unlisted chat"))
     poller = TelegramPoller(transport, cmds) if (settings.telegram_bot_token and chat_ids) else None
     hb = Heartbeater(HeartbeatKV(kv, ttl_s=60), "bot", notifier, lambda: {"signals": "on" if runner else "off"}, interval_s=10)

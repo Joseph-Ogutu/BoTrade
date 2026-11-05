@@ -108,6 +108,7 @@ services:
       DERIV_PAT_DEMO_FILE: /run/secrets/deriv_pat_demo
       TELEGRAM_BOT_TOKEN_FILE: /run/secrets/telegram_bot_token
       ADMIN_API_TOKEN_FILE: /run/secrets/admin_api_token
+      DASHBOARD_PASSWORD_HASH_FILE: /run/secrets/dashboard_password_hash   # read at each login; empty means no password set
       DERIV_APP_ID_DEMO: ${DERIV_APP_ID_DEMO:-}
       DERIV_ACCOUNT_ID_DEMO: ${DERIV_ACCOUNT_ID_DEMO:-}
       TELEGRAM_ALLOWED_CHAT_IDS: ${TELEGRAM_ALLOWED_CHAT_IDS:-}
@@ -115,7 +116,7 @@ services:
       KILL_SWITCH_PATH: /state/KILL_SWITCH
       ADMIN_API_BIND: container
       TZ: UTC
-    secrets: [postgres_password, redis_password, deriv_pat_demo, telegram_bot_token, admin_api_token]
+    secrets: [postgres_password, redis_password, deriv_pat_demo, telegram_bot_token, admin_api_token, dashboard_password_hash]
     volumes:
       - botstate:/state          # kill flag file: survives container recreation
     tmpfs: [/tmp]
@@ -220,3 +221,5 @@ secrets:
     file: ./secrets/telegram_bot_token
   admin_api_token:
     file: ./secrets/admin_api_token
+  dashboard_password_hash:
+    file: ./secrets/dashboard_password_hash

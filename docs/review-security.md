@@ -53,6 +53,10 @@ Defence layers (all must hold independently): build lock `REAL_TRADING_IMPLEMENT
 - Bind validation to 127.0.0.1 or ::1 only; verify from the container network that the port is not reachable from other containers on `backend` (it should not be: loopback inside the bot container).
 - Telegram: allowlist, exact command match, no release or setting change available.
 
+### C1. Password login (added after the first dashboard)
+- `api/passwords.py` (scrypt, parameters inside the stored string), `SessionStore` and the login, logout and auth-methods routes in `api/app.py`, `scripts/set_dashboard_password.py`. Review: scrypt cost and memory against the container limit, timing of verify, the session store (only hashes kept, bounded, idle and absolute expiry, invalidated by a password change), cookie flags and the `Secure` decision behind a proxy, the CSRF header requirement, that release is bearer-only, that a missing credential is not counted as a guess (and whether that opens a hole), and that the password hash file is readable by the container user (mode 0644 inside a 0700 directory).
+- No second factor and no per-user accounts. Judge whether password plus lockout is enough for a page that shows balances and can engage the kill switch.
+
 ### C2. Public HTTPS front (optional profile)
 - `deploy/Caddyfile` and the `caddy` compose service expose the dashboard at a public name. Review: the lockout (`AuthLimiter`, `client_ip` in `api/app.py`) including whether the forwarded-address handling can be abused, the 404 on `/release`, that no other path of the admin API is reachable that should not be, TLS settings, the Caddy image pin, and the absence of a second factor (is a 256 bit token plus lockout acceptable for a page that can engage the kill switch and shows balances?).
 - Docker publishes ports through its own firewall chains: confirm the Oracle security list, not host iptables, is the real gate, and that only 80 and 443 are open.

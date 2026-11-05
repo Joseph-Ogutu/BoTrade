@@ -78,6 +78,9 @@ input{font:inherit;width:100%;min-height:44px;padding:10px 12px;border-radius:10
 .killbar p{margin:0;color:var(--muted);font-size:.88rem;flex:1;min-width:200px}
 #login{max-width:420px;margin:12vh auto 0}
 #login form{display:grid;gap:12px}
+#tokenBox{margin-top:16px;color:var(--muted);font-size:.9rem}
+#tokenBox summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);opacity:0}
 #login p{margin:0;color:var(--muted);font-size:.92rem}
 .err{color:var(--bad);font-size:.9rem;min-height:1.2em}
 dialog{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);color:var(--text);max-width:420px;width:calc(100% - 32px);padding:20px}
@@ -93,13 +96,23 @@ footer{margin-top:18px;color:var(--muted);font-size:.78rem;text-align:center}
 <main>
   <section id="login" class="card hidden" aria-labelledby="lt">
     <h1 id="lt">BoTrade Console</h1>
-    <form id="loginForm" autocomplete="off">
-      <p>Enter the admin token. It stays in this browser tab only and is cleared when you close it.</p>
-      <label for="tok" class="pill fit">Admin token</label>
-      <input id="tok" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" required>
-      <div class="err" id="loginErr" role="alert"></div>
+    <form id="pwForm">
+      <input id="un" class="vh" type="text" name="username" autocomplete="username" value="owner" readonly tabindex="-1" aria-hidden="true">
+      <label for="pw" class="pill fit">Password</label>
+      <input id="pw" type="password" name="password" autocomplete="current-password" autocapitalize="off" spellcheck="false" required>
+      <div class="err" id="pwErr" role="alert"></div>
       <button class="primary" type="submit">Sign in</button>
     </form>
+    <details id="tokenBox">
+      <summary>Use an admin token instead</summary>
+      <form id="loginForm" autocomplete="off">
+        <p>The token stays in this browser tab only and is cleared when you close it.</p>
+        <label for="tok" class="pill fit">Admin token</label>
+        <input id="tok" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <div class="err" id="loginErr" role="alert"></div>
+        <button type="submit">Sign in with token</button>
+      </form>
+    </details>
   </section>
 
   <div id="app" class="hidden">
@@ -188,7 +201,8 @@ function li(cls){var e=document.createElement("li");if(cls)e.className=cls;retur
 function div(cls,text){var e=document.createElement("div");if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e}
 
 function api(path,opts){
-  opts=opts||{};opts.headers=Object.assign({"Authorization":"Bearer "+token},opts.headers||{});opts.cache="no-store";
+  opts=opts||{};opts.headers=Object.assign({"X-Requested-With":"botrade"},token?{"Authorization":"Bearer "+token}:{},opts.headers||{});
+  opts.cache="no-store";opts.credentials="same-origin";
   return fetch(path,opts);
 }
 
@@ -293,7 +307,7 @@ function renderLive(d){
 }
 function pollLive(){
   api("/status").then(function(r){
-    if(r.status===401){signOut("Token rejected. Sign in again.");return null}
+    if(r.status===401){signOut("Signed out. Sign in again.");return null}
     if(!r.ok)throw new Error("HTTP "+r.status);return r.json();
   }).then(function(d){if(d)renderLive(d)}).catch(function(){
     var age=lastOk?Math.round((Date.now()-lastOk)/1000):null;setLive("bad","offline"+(age!==null?", data "+age+"s old":""));
@@ -302,8 +316,8 @@ function pollLive(){
 
 function tick(){
   api("/api/summary").then(function(r){
-    if(r.status===401){signOut("Token rejected. Sign in again.");return null}
-    if(r.status===503){signOut("The server has no admin token configured.");return null}
+    if(r.status===401){signOut("Signed out. Sign in again.");return null}
+    if(r.status===503){signOut("Sign-in is not set up on the server.");return null}
     if(!r.ok)throw new Error("HTTP "+r.status);
     return r.json();
   }).then(function(d){
@@ -320,9 +334,11 @@ function start(){
   timer=setInterval(function(){if(!document.hidden)tick()},REFRESH_MS);
   liveTimer=setInterval(function(){if(!document.hidden)pollLive()},1000);
 }
-function signOut(msg){
+function signOut(msg,remote){
   try{sessionStorage.removeItem(KEY)}catch(e){}
-  token=null;clearInterval(timer);clearInterval(liveTimer);show("app",false);show("login",true);$("loginErr").textContent=msg||"";$("tok").value="";
+  if(remote)fetch("/api/logout",{method:"POST",headers:{"X-Requested-With":"botrade"},credentials:"same-origin"}).catch(function(){});
+  token=null;clearInterval(timer);clearInterval(liveTimer);show("app",false);show("login",true);
+  $("pwErr").textContent=msg||"";$("loginErr").textContent="";$("tok").value="";$("pw").value="";
 }
 
 $("loginForm").addEventListener("submit",function(ev){
@@ -330,7 +346,18 @@ $("loginForm").addEventListener("submit",function(ev){
   try{sessionStorage.setItem(KEY,token)}catch(e){}
   $("loginErr").textContent="";start();
 });
-$("signout").addEventListener("click",function(){signOut("")});
+$("pwForm").addEventListener("submit",function(ev){
+  ev.preventDefault();var pw=$("pw").value;if(!pw)return;$("pwErr").textContent="";
+  fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json","X-Requested-With":"botrade"},credentials:"same-origin",body:JSON.stringify({password:pw})})
+    .then(function(r){
+      if(r.ok){$("pw").value="";token=null;start();return}
+      if(r.status===401)$("pwErr").textContent="Wrong password.";
+      else if(r.status===429){var s=parseInt(r.headers.get("Retry-After")||"0",10);$("pwErr").textContent="Too many attempts. Try again in "+Math.max(1,Math.ceil(s/60))+" min."}
+      else if(r.status===503)$("pwErr").textContent="Password sign-in is not set up yet. Use the admin token below.";
+      else $("pwErr").textContent="Could not sign in (HTTP "+r.status+").";
+    }).catch(function(){$("pwErr").textContent="Could not reach the server."});
+});
+$("signout").addEventListener("click",function(){signOut("",true)});
 document.addEventListener("visibilitychange",function(){if(!document.hidden&&token){tick();pollLive()}});
 
 var dlg=$("killDlg");
@@ -346,7 +373,14 @@ $("killForm").addEventListener("submit",function(ev){
     .then(function(){$("killGo").disabled=false});
 });
 
-if(token)start();else show("login",true);
+function boot(){
+  fetch("/api/auth-methods",{cache:"no-store"}).then(function(r){return r.json()}).then(function(m){
+    $("pwForm").classList.toggle("hidden",!m.password);$("tokenBox").open=!m.password;$("tokenBox").classList.toggle("hidden",!m.token);
+  }).catch(function(){});
+  if(token){start();return}
+  api("/status").then(function(r){if(r.ok)start();else show("login",true)}).catch(function(){show("login",true)});
+}
+boot();
 })();
 </script>
 </body>

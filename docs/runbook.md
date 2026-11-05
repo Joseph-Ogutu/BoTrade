@@ -298,3 +298,14 @@ What the page can see: balances of both accounts through ONE read-only GET to `/
 Protection on the public page: a 256 bit random admin token (a long random string, never a password you chose), TLS, a lockout after 10 bad tokens from one address within 10 minutes (blocked 15 minutes, even for the right token), a strict Content-Security-Policy, no inline script or style, and one write action only (kill, type KILL to confirm). NOT present: a second factor, per-user accounts, or alerting on failed logins. Anyone who obtains the token can read balances and engage the kill switch; they cannot release it, change settings, or trade.
 
 Enable on the VM: set `COMPOSE_PROFILES=public` and `DASHBOARD_HOST=bot.josephogutu.com` in `vm.env`, open TCP 80 and 443 in the Oracle security list (ingress from 0.0.0.0/0), then `docker compose --env-file vm.env -f docker-compose.yml -f docker-compose.lowmem.yml up -d`. Docker publishes these ports through its own firewall chains, so the host `iptables` INPUT rules do not gate them: the Oracle security list is the gate. Disable by removing the profile and the two ingress rules.
+
+
+### 12.11 Password login for the dashboard
+
+Set or change the password on the VM, in your own terminal (the password is typed hidden and never leaves that terminal; only a salted scrypt hash is written, to `secrets/dashboard_password_hash`):
+
+```bash
+ssh -t -i ~/.ssh/<key> deploy@<host> 'cd /opt/derivbot && python3 scripts/set_dashboard_password.py'
+```
+
+At least 12 characters; a few unrelated words is better than a clever short one. No restart is needed: the bot reads the hash file at each login, and changing it signs every existing session out. Login creates a session cookie (HttpOnly, SameSite=Strict, Secure over HTTPS) valid for 8 hours absolute and 2 hours idle; sessions live in the bot's memory, so a restart signs everyone out. A write through a cookie session (kill) also requires the `X-Requested-With: botrade` header. The release endpoint accepts ONLY the admin token and is blocked from the internet by the proxy. The admin token still works as a fallback and for command line tools. The same lockout applies to wrong passwords (10 per address in 10 minutes, then 15 minutes). If you forget the password: run the script again on the VM.

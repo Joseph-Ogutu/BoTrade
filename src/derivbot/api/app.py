@@ -9,6 +9,7 @@ import hashlib
 import hmac
 import ipaddress
 import re
+import secrets
 import threading
 import time
 from collections import defaultdict, deque
@@ -16,17 +17,25 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
+from derivbot.api.passwords import fingerprint, verify_password
 from derivbot.killswitch.switch import KillSwitch
+
+COOKIE = "botrade_session"
+CSRF_HEADER, CSRF_VALUE = "x-requested-with", "botrade"
 
 LOCAL_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
 
 class KillBody(BaseModel):
     reason: str = Field(default="admin api", min_length=1, max_length=200)
+
+
+class LoginBody(BaseModel):
+    password: str = Field(min_length=1, max_length=256)
 
 
 class ReleaseBody(BaseModel):
@@ -101,6 +110,52 @@ class AuthLimiter:
             self._fails.pop(ip, None)
 
 
+class SessionStore:
+    """Server-side login sessions. The cookie holds a random id; only its SHA-256 is kept here, so a memory dump does not
+    reveal usable cookies. Sessions expire when idle and after an absolute limit, die with a restart, and stop working when
+    the stored password hash changes (they carry its fingerprint)."""
+
+    def __init__(self, idle_s: float = 2 * 3600, absolute_s: float = 8 * 3600, cap: int = 50,
+                 clock: Callable[[], float] = time.monotonic) -> None:
+        self.idle, self.absolute, self.cap, self._clock = idle_s, absolute_s, cap, clock
+        self._s: dict[str, tuple[float, float, str]] = {}          # sha256(id) -> (created, last_seen, fingerprint)
+        self._lock = threading.Lock()
+
+    @staticmethod
+    def _key(sid: str) -> str:
+        return hashlib.sha256(sid.encode()).hexdigest()
+
+    def create(self, fp: str) -> str:
+        sid = secrets.token_urlsafe(32)
+        with self._lock:
+            now = self._clock()
+            self._s = {k: v for k, v in self._s.items() if now - v[0] < self.absolute and now - v[1] < self.idle}
+            while len(self._s) >= self.cap:
+                self._s.pop(min(self._s, key=lambda k: self._s[k][0]))
+            self._s[self._key(sid)] = (now, now, fp)
+        return sid
+
+    def valid(self, sid: str | None, fp: str | None) -> bool:
+        if not sid or not fp:
+            return False
+        with self._lock:
+            k = self._key(sid)
+            rec = self._s.get(k)
+            if rec is None:
+                return False
+            now = self._clock()
+            if rec[2] != fp or now - rec[0] >= self.absolute or now - rec[1] >= self.idle:
+                self._s.pop(k, None)
+                return False
+            self._s[k] = (rec[0], now, rec[2])
+            return True
+
+    def revoke(self, sid: str | None) -> None:
+        if sid:
+            with self._lock:
+                self._s.pop(self._key(sid), None)
+
+
 def _csp_and_page() -> tuple[str, str]:
     """The page and a Content-Security-Policy that allows exactly its one inline style and one inline script, by hash."""
     html = (STATIC / "dashboard.html").read_text(encoding="utf-8")
@@ -118,26 +173,78 @@ def _csp_and_page() -> tuple[str, str]:
 def create_app(kill_switch: KillSwitch, admin_token: str | None,
                status_provider: Callable[[], dict[str, Any]] = lambda: {},
                summary_provider: Callable[[], dict[str, Any]] = lambda: {},
-               limiter: AuthLimiter | None = None) -> FastAPI:
+               limiter: AuthLimiter | None = None,
+               password_hash: Callable[[], str | None] = lambda: None,
+               sessions: SessionStore | None = None) -> FastAPI:
+    """Two ways in: a bearer token (command line tools, fallback) or a password login that sets a session cookie."""
     app = FastAPI(title="derivbot admin", docs_url=None, redoc_url=None, openapi_url=None)
     page, csp = _csp_and_page()
     limiter = limiter or AuthLimiter()
+    sessions = sessions or SessionStore()
 
-    def auth(request: Request, authorization: str | None = Header(default=None)) -> None:
-        if not admin_token:
-            raise HTTPException(503, "admin token not configured")
+    def auth(request: Request, authorization: str | None = Header(default=None)) -> str:
+        """Returns how the caller got in: "bearer" or "session"."""
+        stored = password_hash()
+        if not admin_token and not stored:
+            raise HTTPException(503, "no admin token or password configured")
         ip = client_ip(request)
         wait = limiter.retry_after(ip)
         if wait:
             raise HTTPException(429, "too many failed attempts", headers={"Retry-After": str(wait)})
         scheme, _, token = (authorization or "").partition(" ")
-        if scheme.lower() != "bearer" or not token:
-            limiter.failure(ip)
-            raise HTTPException(401, "bearer token required", headers={"WWW-Authenticate": "Bearer"})
-        if not hmac.compare_digest(token.encode(), admin_token.encode()):
+        if scheme.lower() == "bearer" and token:
+            if admin_token and hmac.compare_digest(token.encode(), admin_token.encode()):
+                limiter.success(ip)
+                return "bearer"
             limiter.failure(ip)
             raise HTTPException(401, "invalid token", headers={"WWW-Authenticate": "Bearer"})
+        if stored and sessions.valid(request.cookies.get(COOKIE), fingerprint(stored)):
+            return "session"
+        raise HTTPException(401, "sign in required", headers={"WWW-Authenticate": "Bearer"})   # no credentials: not a failed guess
+
+    def auth_write(request: Request, via: str = Depends(auth)) -> str:
+        """A cookie session can be ridden by another site, so a write through it also needs a header a cross-site form or
+        image cannot send (and SameSite=Strict keeps the cookie from other sites in the first place)."""
+        if via == "session" and request.headers.get(CSRF_HEADER) != CSRF_VALUE:
+            raise HTTPException(403, "missing request header")
+        return via
+
+    def auth_bearer_only(via: str = Depends(auth)) -> str:
+        """Release is the dangerous direction: only the bearer token (command line on the server) may do it, never a browser."""
+        if via != "bearer":
+            raise HTTPException(403, "release needs the admin token")
+        return via
+
+    def secure_cookie(request: Request) -> bool:
+        return request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+
+    @app.get("/api/auth-methods")
+    def auth_methods() -> dict[str, bool]:
+        """Which sign-in forms to offer. Public on purpose; it reveals nothing but that a password has been set."""
+        return {"password": bool(password_hash()), "token": bool(admin_token)}
+
+    @app.post("/api/login")
+    def login(body: LoginBody, request: Request, response: Response) -> dict[str, bool]:
+        stored = password_hash()
+        if not stored:
+            raise HTTPException(503, "password login is not set up")
+        ip = client_ip(request)
+        wait = limiter.retry_after(ip)
+        if wait:
+            raise HTTPException(429, "too many failed attempts", headers={"Retry-After": str(wait)})
+        if not verify_password(body.password, stored):
+            limiter.failure(ip)
+            raise HTTPException(401, "wrong password")
         limiter.success(ip)
+        response.set_cookie(COOKIE, sessions.create(fingerprint(stored)), max_age=int(sessions.absolute), httponly=True,
+                            samesite="strict", secure=secure_cookie(request), path="/")
+        return {"ok": True}
+
+    @app.post("/api/logout")
+    def logout(request: Request, response: Response) -> dict[str, bool]:
+        sessions.revoke(request.cookies.get(COOKIE))
+        response.delete_cookie(COOKIE, path="/")
+        return {"ok": True}
 
     @app.get("/health")
     def health() -> dict[str, bool]:
@@ -158,12 +265,12 @@ def create_app(kill_switch: KillSwitch, admin_token: str | None,
     def status() -> dict[str, Any]:
         return {"kill_switch": kill_switch.status(), **status_provider()}
 
-    @app.post("/kill", dependencies=[Depends(auth)])
+    @app.post("/kill", dependencies=[Depends(auth_write)])
     def kill(body: KillBody = KillBody()) -> dict[str, Any]:
         kill_switch.engage("api", body.reason)
         return {"engaged": True}
 
-    @app.post("/release", dependencies=[Depends(auth)])
+    @app.post("/release", dependencies=[Depends(auth_bearer_only)])
     def release(body: ReleaseBody) -> dict[str, Any]:
         try:
             kill_switch.release("api", body.reason)
