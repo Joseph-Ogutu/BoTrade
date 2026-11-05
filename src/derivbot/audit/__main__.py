@@ -89,7 +89,7 @@ async def audit_once(engine, cfg, session: DerivSession, since: dt.datetime) -> 
     return run_checks(data), len(local)
 
 
-async def amain(since: dt.datetime) -> int:
+async def amain(since: dt.datetime, store: bool = False) -> int:
     env = dict(os.environ)
     if os.environ.get("ENV_FILE"):
         env = {**parse_env_file(os.environ["ENV_FILE"]), **env}
@@ -107,13 +107,24 @@ async def amain(since: dt.datetime) -> int:
         print("no trades recorded since", since.isoformat(), "- nothing to audit yet")
         return 0
     print(render(checks, n))
+    if store:
+        import redis
+
+        from derivbot.audit.loop import store_verdict
+        from derivbot.kv.store import RedisStore
+
+        store_verdict(RedisStore(redis.Redis.from_url(settings.redis_url.get_secret_value(), socket_connect_timeout=3)), checks, n,
+                      dt.datetime.now(dt.UTC))
+        print("verdict stored: the dashboard now shows this result")
     return 0 if all(c.passed for c in checks) else 1
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Accuracy audit of the bot's records against the exchange's (read only)")
     ap.add_argument("--since", default="1970-01-01T00:00:00Z", help="only trades created at or after this UTC time")
-    return asyncio.run(amain(parse_utc(ap.parse_args().since)))
+    ap.add_argument("--store", action="store_true", help="also save the verdict so the dashboard shows it (replaces the previous one)")
+    args = ap.parse_args()
+    return asyncio.run(amain(parse_utc(args.since), args.store))
 
 
 if __name__ == "__main__":

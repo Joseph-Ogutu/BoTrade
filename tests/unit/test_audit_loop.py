@@ -75,3 +75,13 @@ async def test_the_loop_waits_then_audits_on_the_interval_survives_errors_and_st
     assert calls["n"] >= 3 and last_verdict(kv)["passed"]            # the first error did not stop it
     halt.set()
     await asyncio.wait_for(task, 2)
+
+
+def test_store_verdict_replaces_the_previous_verdict_so_a_stale_failure_can_be_cleared():
+    from derivbot.audit.loop import store_verdict
+    kv = MemoryStore()
+    store_verdict(kv, BAD, 11, NOW)
+    assert last_verdict(kv)["passed"] is False
+    store_verdict(kv, GOOD, 12, NOW)
+    v = last_verdict(kv)
+    assert v["passed"] is True and v["trades"] == 12 and v["failed"] == []

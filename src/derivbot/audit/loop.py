@@ -26,6 +26,13 @@ def verdict(checks: list[Check], trades: int, now: dt.datetime) -> dict[str, Any
             "passed": not failed, "failed": [{"name": c.name, "detail": c.detail[:200]} for c in failed]}
 
 
+def store_verdict(kv: Any, checks: list[Check], trades: int, now: dt.datetime) -> dict[str, Any]:
+    """Save a verdict for the dashboard (7 days). Shared by the scheduled loop and the command line --store option."""
+    v = verdict(checks, trades, now)
+    kv.set(KEY, json.dumps(v), 7 * 86400)
+    return v
+
+
 class AuditLoop:
     def __init__(self, run: Callable[[], Awaitable[tuple[list[Check], int]]], kv: Any, alert: Callable[[str, str], None],
                  session_ready: Callable[[], bool], interval_s: float = 6 * 3600.0, first_delay_s: float = 600.0,
@@ -39,8 +46,7 @@ class AuditLoop:
         checks, n = await self.run_audit()
         if not n:
             return None
-        v = verdict(checks, n, self.clock())
-        self.kv.set(KEY, json.dumps(v), 7 * 86400)
+        v = store_verdict(self.kv, checks, n, self.clock())
         if v["passed"]:
             log.info("accuracy audit: all %d checks passed over %d trades", v["checks"], n)
         else:
