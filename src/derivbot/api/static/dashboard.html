@@ -64,6 +64,10 @@ svg.spark{width:100%;height:84px;display:block}
 .trade .a{font-weight:600} .trade .b{color:var(--muted);font-size:.82rem} .trade .r{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
 .trade .st{font-size:.75rem;color:var(--muted);text-align:right}
 .empty{color:var(--muted);font-size:.92rem;padding:6px 0}
+.pager{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);flex-wrap:wrap}
+.pager button{min-width:84px} .pager button:disabled{opacity:.45;cursor:default}
+.pager span{color:var(--muted);font-size:.85rem;font-variant-numeric:tabular-nums}
+select{font:inherit;min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--text);padding:0 8px}
 .rej,.ev{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:.92rem}
 .rej li{display:flex;justify-content:space-between;gap:10px} .rej .n{font-variant-numeric:tabular-nums;color:var(--muted)}
 .ev li{display:grid;gap:0} .ev .t{font-size:.76rem;color:var(--muted)}
@@ -142,7 +146,13 @@ footer{margin-top:18px;color:var(--muted);font-size:.78rem;text-align:center}
     <div class="grid cols">
       <div class="stack">
         <div class="card"><h2>Balance trend</h2><svg class="spark" id="spark" viewBox="0 0 300 84" preserveAspectRatio="none" role="img" aria-label="Balance trend"></svg><div class="s empty hidden" id="sparkEmpty">No balance history yet.</div></div>
-        <div class="card"><h2>Recent trades</h2><ul class="trades" id="trades"></ul></div>
+        <div class="card"><h2>Trades</h2><ul class="trades" id="trades"></ul>
+          <div class="pager" id="pager">
+            <button type="button" id="pgPrev" aria-label="Newer trades">Newer</button>
+            <span id="pgInfo" aria-live="polite">-</span>
+            <button type="button" id="pgNext" aria-label="Older trades">Older</button>
+            <label class="sz"><span class="vh">Rows per page</span><select id="pgSize"><option>10</option><option selected>15</option><option>25</option><option>50</option></select></label>
+          </div></div>
       </div>
       <div class="stack">
         <div class="card"><h2>System</h2>
@@ -250,17 +260,6 @@ function render(d){
   $("expo").textContent=String(d.open_exposure||0);
   spark(d.equity_curve);
 
-  var ul=$("trades");clear(ul);
-  if(!d.recent_trades||!d.recent_trades.length){var e=li();e.appendChild(div("empty","No trades yet."));ul.appendChild(e)}
-  else d.recent_trades.forEach(function(x){
-    var r=li("trade");
-    r.appendChild(div("a",x.symbol+" "+x.type));
-    var pr=div("r"+(x.profit>0?" pos":x.profit<0?" neg":""),x.profit===null||x.profit===undefined?money(x.stake,cur):signed(x.profit,cur));r.appendChild(pr);
-    r.appendChild(div("b","stake "+money(x.stake,cur)+" - "+ago(x.time)));
-    r.appendChild(div("st",x.state.replace(/_/g," ").toLowerCase()));
-    ul.appendChild(r);
-  });
-
   var rj=$("rej");clear(rj);var names=Object.keys(d.risk_rejections_today||{});
   if(!names.length){var e2=li();e2.appendChild(div("empty","None today."));rj.appendChild(e2)}
   names.forEach(function(n){var r=li();var a=document.createElement("span");a.textContent=n.replace(/_/g," ");var b=document.createElement("span");b.className="n";b.textContent=String(d.risk_rejections_today[n]);r.appendChild(a);r.appendChild(b);rj.appendChild(r)});
@@ -314,6 +313,28 @@ function pollLive(){
   });
 }
 
+var pg={page:1,size:15,pages:1};
+function renderTrades(d,cur){
+  pg.page=d.page;pg.pages=d.pages;pg.size=d.size;
+  var ul=$("trades");clear(ul);
+  if(!d.items.length){var e=li();e.appendChild(div("empty","No trades yet."));ul.appendChild(e)}
+  else d.items.forEach(function(x){
+    var r=li("trade");
+    r.appendChild(div("a",x.symbol+" "+x.type));
+    r.appendChild(div("r"+(x.profit>0?" pos":x.profit<0?" neg":""),x.profit===null||x.profit===undefined?money(x.stake,cur):signed(x.profit,cur)));
+    r.appendChild(div("b","stake "+money(x.stake,cur)+" - "+ago(x.time)));
+    r.appendChild(div("st",x.state.replace(/_/g," ").toLowerCase()));
+    ul.appendChild(r);
+  });
+  $("pgInfo").textContent="Page "+d.page+" of "+d.pages+" ("+d.total+" total)";
+  $("pgPrev").disabled=d.page<=1;$("pgNext").disabled=d.page>=d.pages;
+  $("pager").classList.toggle("hidden",d.total<=10);
+}
+function loadTrades(){
+  api("/api/trades?page="+pg.page+"&size="+pg.size).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json()})
+    .then(function(d){renderTrades(d,"USD")}).catch(function(){});
+}
+
 function tick(){
   api("/api/summary").then(function(r){
     if(r.status===401){signOut("Signed out. Sign in again.");return null}
@@ -321,7 +342,7 @@ function tick(){
     if(!r.ok)throw new Error("HTTP "+r.status);
     return r.json();
   }).then(function(d){
-    if(!d)return;lastOk=Date.now();render(d);setLive("ok","live, "+new Date().toLocaleTimeString());
+    if(!d)return;lastOk=Date.now();render(d);loadTrades();setLive("ok","live, "+new Date().toLocaleTimeString());
   }).catch(function(){
     var age=lastOk?Math.round((Date.now()-lastOk)/1000):null;
     setLive("bad","offline"+(age!==null?", data "+age+"s old":""));
@@ -357,6 +378,9 @@ $("pwForm").addEventListener("submit",function(ev){
       else $("pwErr").textContent="Could not sign in (HTTP "+r.status+").";
     }).catch(function(){$("pwErr").textContent="Could not reach the server."});
 });
+$("pgPrev").addEventListener("click",function(){if(pg.page>1){pg.page--;loadTrades()}});
+$("pgNext").addEventListener("click",function(){if(pg.page<pg.pages){pg.page++;loadTrades()}});
+$("pgSize").addEventListener("change",function(){pg.size=parseInt($("pgSize").value,10)||15;pg.page=1;loadTrades()});
 $("signout").addEventListener("click",function(){signOut("",true)});
 document.addEventListener("visibilitychange",function(){if(!document.hidden&&token){tick();pollLive()}});
 

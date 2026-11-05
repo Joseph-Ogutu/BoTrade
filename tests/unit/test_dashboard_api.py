@@ -52,7 +52,7 @@ def test_page_has_no_external_resources_no_inline_handlers_and_no_unsafe_dom_wri
 def test_the_page_offers_no_release_and_its_only_writes_are_kill_login_and_logout():
     js = re.search(r"<script>(.*?)</script>", HTML, re.S).group(1)
     assert "/release" not in js
-    assert set(re.findall(r"api\(\"([^\"]+)\"", js)) == {"/status", "/api/summary", "/kill"}
+    assert set(re.findall(r"api\(\"([^\"]+)\"", js)) == {"/status", "/api/summary", "/kill", "/api/trades?page="}
     assert set(re.findall(r"fetch\(\"([^\"]+)\"", js)) == {"/api/auth-methods", "/api/login", "/api/logout"}
     assert re.findall(r"method:\"([A-Z]+)\"", js) == ["POST", "POST", "POST"]          # kill, logout, login: no PUT, no DELETE
     assert "localStorage" not in js and "document.cookie" not in js                     # the session cookie is HttpOnly anyway
@@ -164,3 +164,15 @@ def test_public_front_is_opt_in_blocks_release_and_overwrites_the_forwarded_addr
     cf = (root / "deploy" / "Caddyfile").read_text()
     assert "/release" in cf and "respond @private 404" in cf
     assert "header_up X-Forwarded-For {remote_host}" in cf and "Strict-Transport-Security" in cf
+
+
+def test_trades_endpoint_needs_auth_validates_input_and_passes_it_to_the_provider(tmp_path):
+    seen = []
+    ks = KillSwitch(MemoryStore(), MemoryEventLog(), tmp_path / "KILL")
+    c = TestClient(create_app(ks, TOKEN, trades_provider=lambda p, s: seen.append((p, s)) or {"page": p, "size": s, "total": 0, "pages": 1, "items": []}))
+    h = {"Authorization": f"Bearer {TOKEN}"}
+    assert c.get("/api/trades").status_code == 401
+    assert c.get("/api/trades?page=2&size=25", headers=h).json()["page"] == 2 and seen[-1] == (2, 25)
+    assert c.get("/api/trades", headers=h).status_code == 200 and seen[-1] == (1, 15)
+    for bad in ("page=0", "page=-1", "size=0", "size=101", "page=abc", "size=1e9"):
+        assert c.get(f"/api/trades?{bad}", headers=h).status_code == 422, bad

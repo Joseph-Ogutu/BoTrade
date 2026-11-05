@@ -234,8 +234,14 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
             return None
         return value or None
 
+    def trades(page: int, size: int) -> dict:
+        from derivbot.api.dashboard import trades_page
+
+        with engine.connect() as conn:
+            return trades_page(conn, page, size)
+
     api = create_app(ks, settings.admin_api_token.get_secret_value() if settings.admin_api_token else None,
-                     lambda: app_box["a"].status(), summary, password_hash=password_hash)
+                     lambda: app_box["a"].status(), summary, password_hash=password_hash, trades_provider=trades)
     cmds = TelegramCommands(ks, set(chat_ids), lambda: app_box["a"].status(), on_unauthorized=lambda c, t: log.warning("telegram: unlisted chat"))
     poller = TelegramPoller(transport, cmds) if (settings.telegram_bot_token and chat_ids) else None
     hb = Heartbeater(HeartbeatKV(kv, ttl_s=60), "bot", notifier, lambda: {"signals": "on" if runner else "off"}, interval_s=10)

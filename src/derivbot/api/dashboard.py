@@ -76,3 +76,22 @@ def build_summary(conn: Connection, now: dt.datetime) -> dict[str, Any]:
         "last_reconciliation": None if recon is None else {"at": _iso(recon[0]), "status": recon[1], "trigger": recon[2]},
         "recent_events": events,
     }
+
+
+PAGE_SIZES = (10, 15, 25, 50)
+
+
+def trades_page(conn: Connection, page: int, size: int) -> dict[str, Any]:
+    """One page of trades, newest first. The size is clamped to a known set and the page to the existing range, so a hostile
+    or stale request can neither ask for the whole table nor fall off the end."""
+    size = size if size in PAGE_SIZES else TRADE_LIMIT
+    total = int(conn.execute(text("SELECT count(*) FROM order_intents")).scalar() or 0)
+    pages = max(1, -(-total // size))
+    page = min(max(1, page), pages)
+    rows = conn.execute(text(
+        "SELECT i.created_at, i.symbol, i.contract_type, i.stake, i.state, o.profit FROM order_intents i "
+        "LEFT JOIN orders o ON o.intent_id = i.id ORDER BY i.created_at DESC, i.id DESC LIMIT :n OFFSET :o"),
+        {"n": size, "o": (page - 1) * size}).all()
+    return {"page": page, "size": size, "total": total, "pages": pages,
+            "items": [{"time": _iso(r[0]), "symbol": r[1], "type": r[2], "stake": _num(r[3]), "state": r[4], "profit": _num(r[5])}
+                      for r in rows]}

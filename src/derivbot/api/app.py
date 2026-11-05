@@ -17,7 +17,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
@@ -175,7 +175,9 @@ def create_app(kill_switch: KillSwitch, admin_token: str | None,
                summary_provider: Callable[[], dict[str, Any]] = lambda: {},
                limiter: AuthLimiter | None = None,
                password_hash: Callable[[], str | None] = lambda: None,
-               sessions: SessionStore | None = None) -> FastAPI:
+               sessions: SessionStore | None = None,
+               trades_provider: Callable[[int, int], dict[str, Any]] = lambda page, size: {
+                   "page": 1, "size": size, "total": 0, "pages": 1, "items": []}) -> FastAPI:
     """Two ways in: a bearer token (command line tools, fallback) or a password login that sets a session cookie."""
     app = FastAPI(title="derivbot admin", docs_url=None, redoc_url=None, openapi_url=None)
     page, csp = _csp_and_page()
@@ -260,6 +262,10 @@ def create_app(kill_switch: KillSwitch, admin_token: str | None,
     @app.get("/api/summary", dependencies=[Depends(auth)])
     def summary() -> dict[str, Any]:
         return {"kill_switch": kill_switch.status(), **status_provider(), **summary_provider()}
+
+    @app.get("/api/trades", dependencies=[Depends(auth)])
+    def trades(page: int = Query(1, ge=1, le=100_000), size: int = Query(15, ge=1, le=100)) -> dict[str, Any]:
+        return trades_provider(page, size)
 
     @app.get("/status", dependencies=[Depends(auth)])
     def status() -> dict[str, Any]:

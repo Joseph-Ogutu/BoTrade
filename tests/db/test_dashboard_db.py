@@ -29,3 +29,39 @@ def test_an_empty_database_gives_a_complete_empty_summary(conn):
     s = build_summary(conn, D0)
     assert s["balance"] is None and s["recent_trades"] == [] and s["today"]["settled"] == 0 and s["today"]["win_rate"] is None
     assert s["equity_curve"] == [] and s["last_reconciliation"] is None and s["recent_events"] == []
+
+
+def _seed_many(conn, n):
+    import uuid
+
+    from sqlalchemy import text
+    for i in range(n):
+        conn.execute(text("INSERT INTO order_intents (id, idempotency_key, created_at, mode, account_id, symbol, contract_type, stake, state)"
+                          " VALUES (:i, :k, :t, 'demo', 'A', 'S', 'CALL', 1, 'SETTLED')"),
+                     {"i": str(uuid.uuid4()), "k": uuid.uuid4().hex, "t": D0 + dt.timedelta(minutes=i)})
+
+
+def test_trades_pagination_is_complete_ordered_and_bounded(conn):
+    from derivbot.api.dashboard import trades_page
+    _seed_many(conn, 23)
+    p1, p2, p3 = (trades_page(conn, n, 10) for n in (1, 2, 3))
+    assert (p1["total"], p1["pages"], p1["page"], p1["size"]) == (23, 3, 1, 10)
+    assert [len(p["items"]) for p in (p1, p2, p3)] == [10, 10, 3]
+    times = [i["time"] for p in (p1, p2, p3) for i in p["items"]]
+    assert times == sorted(times, reverse=True) and len(set(times)) == 23           # newest first, nothing repeated or skipped
+
+
+def test_pagination_clamps_page_and_size(conn):
+    from derivbot.api.dashboard import trades_page
+    _seed_many(conn, 12)
+    assert trades_page(conn, 99, 10)["page"] == 2 and len(trades_page(conn, 99, 10)["items"]) == 2     # beyond the end: the last page
+    assert trades_page(conn, 0, 10)["page"] == 1 and trades_page(conn, -5, 10)["page"] == 1
+    assert trades_page(conn, 1, 100000)["size"] == 15                                                    # an unknown size falls back
+    empty = trades_page(conn, 1, 10)
+    assert empty["total"] == 12
+
+
+def test_pagination_of_an_empty_table(conn):
+    from derivbot.api.dashboard import trades_page
+    r = trades_page(conn, 1, 15)
+    assert r == {"page": 1, "size": 15, "total": 0, "pages": 1, "items": []}
