@@ -129,7 +129,7 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
         raise StartupError("mode guard did not resolve to demo")
     with engine.begin() as c:
         append_audit(c, "app", "MODE_GUARD", {"mode": decision.mode.value, "unmet_conditions": decision.failed, "reasons": decision.reasons})
-    ks = KillSwitch(kv, PgEventLog(engine), flag_path or Path(os.environ.get("KILL_SWITCH_FILE", "/data/KILL_SWITCH")))
+    ks = KillSwitch(kv, PgEventLog(engine), flag_path or Path(os.environ.get("KILL_SWITCH_PATH", "/data/KILL_SWITCH")))
     ks.load_on_boot()
     chat_ids = settings.telegram_allowed_chat_ids
     if transport is None:

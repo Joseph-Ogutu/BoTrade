@@ -69,12 +69,17 @@ def _bool(name: str, v: str) -> bool:
 OPTIONAL_SECRETS = frozenset({"DERIV_PAT_DEMO", "DERIV_PAT_REAL", "TELEGRAM_BOT_TOKEN", "ADMIN_API_TOKEN"})
 
 
+# Only these names can be supplied as NAME_FILE. Any other variable that merely ends in _FILE (a path such as a flag file)
+# is left alone, so a path is never mistaken for a secret reference.
+FILE_SECRET_NAMES = OPTIONAL_SECRETS | frozenset({"POSTGRES_PASSWORD", "REDIS_PASSWORD", "DATABASE_URL", "REDIS_URL"})
+
+
 def resolve_file_secrets(env: Mapping[str, str]) -> dict[str, str]:
     """Docker/Compose style: NAME_FILE=/run/secrets/x supplies NAME from a file. Setting both is an error, so a stale
     value cannot silently win. An empty file is "not provided" for the optional secrets (so a fresh checkout can ship empty
     placeholders) and an error for every other secret."""
     out = dict(env)
-    for key in [k for k in env if k.endswith("_FILE") and env[k]]:
+    for key in [k for k in env if k.endswith("_FILE") and env[k] and k[: -len("_FILE")] in FILE_SECRET_NAMES]:
         name = key[: -len("_FILE")]
         if env.get(name):
             raise SettingsError(f"both {name} and {key} are set")

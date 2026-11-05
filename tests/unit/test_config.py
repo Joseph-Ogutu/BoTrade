@@ -241,3 +241,9 @@ def test_an_empty_optional_secret_file_means_not_provided(tmp_path):
     empty.write_text("\n")
     base = {"DATABASE_URL": "postgresql+psycopg://u:p@h/d", "REDIS_URL": "redis://r/0"}
     assert load_settings({**base, "ADMIN_API_TOKEN_FILE": str(empty)}).admin_api_token is None
+
+
+def test_a_variable_that_only_ends_in_file_is_a_path_not_a_secret_reference(tmp_path):
+    base = {"DATABASE_URL": "postgresql+psycopg://u:p@h/d", "REDIS_URL": "redis://r/0"}
+    # KILL_SWITCH_FILE would have been read as "supply KILL_SWITCH from this file" and failed on a missing path
+    assert load_settings({**base, "KILL_SWITCH_FILE": str(tmp_path / "does-not-exist")}).trading_mode == "demo"
