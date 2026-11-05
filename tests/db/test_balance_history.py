@@ -37,3 +37,28 @@ def test_a_database_failure_is_skipped_not_raised():
     engine = create_engine("postgresql+psycopg://nobody:x@127.0.0.1:1/none")
     h = BalanceHistory(engine, lambda: ConnInfo("demo", True, D("1"), "USD"), "A")
     assert h.record_once() is False
+
+
+async def test_the_loop_retries_quickly_until_the_first_point_then_settles_to_the_interval(pg_url):
+    import asyncio
+
+    engine = create_engine(pg_url)
+    box = {"i": ConnInfo(None, None, None)}
+    h = BalanceHistory(engine, lambda: box["i"], "A", interval_s=30.0)
+    h.retry_s = 0.05
+    halt = asyncio.Event()
+    task = asyncio.create_task(h.run(halt))
+    base = len(rows(engine))                                         # the database is shared within this module
+    await asyncio.sleep(0.2)
+    assert len(rows(engine)) == base                                 # not proven yet: still nothing, but it keeps looking
+    box["i"] = ConnInfo("demo", True, D("5"), "USD")
+    for _ in range(40):
+        if len(rows(engine)) > base:
+            break
+        await asyncio.sleep(0.05)
+    assert len(rows(engine)) == base + 1
+    await asyncio.sleep(0.3)
+    assert len(rows(engine)) == base + 1                             # now on the long interval, not retrying
+    halt.set()
+    await asyncio.wait_for(task, 2)
+    engine.dispose()

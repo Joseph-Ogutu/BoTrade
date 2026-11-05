@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 class BalanceHistory:
     def __init__(self, engine: Engine, get_info: Callable[[], ConnInfo], account_id: str, interval_s: float = 300.0) -> None:
         self.engine, self.get_info, self.account_id, self.interval_s = engine, get_info, account_id, interval_s
-        self._last: tuple[str, str] | None = None
+        self.retry_s = 10.0
 
     def record_once(self) -> bool:
         info = self.get_info()
@@ -38,8 +38,8 @@ class BalanceHistory:
 
     async def run(self, halt: asyncio.Event) -> None:
         while not halt.is_set():
-            await asyncio.to_thread(self.record_once)
-            try:
-                await asyncio.wait_for(halt.wait(), timeout=self.interval_s)
+            wrote = await asyncio.to_thread(self.record_once)
+            try:                                  # until the first point exists, look again soon (the session may still be connecting)
+                await asyncio.wait_for(halt.wait(), timeout=self.interval_s if wrote else self.retry_s)
             except TimeoutError:
                 pass
