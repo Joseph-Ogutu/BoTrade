@@ -256,3 +256,16 @@ Nothing in this section has been run on the VM. Everything below was verified on
 - The bot passes `api_min_stake = None`, so it places no trade until minimum-stake discovery is wired after the demo credentials exist. This is deliberate and fails closed.
 - No signal runner starts without a `REAL_DATA_BACKTEST_APPROVED` line in `docs/approvals.md`, which the owner has not written.
 - No log shipping, no alert on a missing backup marker, no restart-storm alert. Add before any unattended run.
+
+
+### 12.7 The deployed instance (demo), how it was set up and how to update it
+
+Set up on 2026-11-05 UTC from the owner's laptop over SSH (key in ~/.ssh on the laptop, never in the repo). Commands used, in order: create the `deploy` user and key-only SSH; install `unattended-upgrades`; create a 4 GB swap file (`scripts/vps_swap.sh` logic); install Docker from Docker's apt repository; send the code with `git archive HEAD | ssh deploy@<host> 'tar -x -C /opt/derivbot'`; copy the token file with `scp`; run `bash scripts/init_secrets.sh`; write `vm.env` (App ID, demo account id, `APP_UID`); then
+
+```bash
+docker compose --env-file vm.env -f docker-compose.yml -f docker-compose.lowmem.yml up -d --build
+```
+
+Update: re-run `git archive` over the old tree, then the same `up -d --build`. Status: `bash scripts/opsctl.sh status` on the VM (it needs `docker compose` to find the same files, so run it from /opt/derivbot). `vm.env` is not tracked and holds no secret, only the App ID and the demo account id.
+
+Found while bringing the stack up for the first time: the redis service needed `user: 999:1000`, and a variable named `KILL_SWITCH_FILE` was misread as a secret reference (now `KILL_SWITCH_PATH`). Both are fixed and tested.
