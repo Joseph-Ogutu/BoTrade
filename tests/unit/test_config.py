@@ -34,16 +34,28 @@ def write(tmp_path, data, name="risk.json"):
 
 # ---------------------------------------------------------------- risk config
 
-def test_the_committed_risk_file_fails_loudly_and_lists_every_unset_value():
+def test_a_risk_file_with_every_owner_value_unset_fails_loudly_and_lists_them_all(tmp_path):
+    names = ("risk_per_trade_pct", "max_stake_abs", "max_daily_loss_abs", "max_consecutive_losses",
+             "max_open_positions", "max_trades_per_hour", "max_proposal_price_slippage",
+             "stale_data_max_age_s", "min_net_payout_ratio", "reconcile_max_age_s",
+             "recent_duplicate_window_s", "daily_reset_utc_hour")
+    unset = {n: SET_BY_OWNER for n in names} | {"min_stake_abs": None, "max_daily_loss_pct_of_start_balance": None}
     with pytest.raises(RiskConfigError) as ei:
-        load_risk_config(ROOT / "config" / "risk.json")
+        load_risk_config(write(tmp_path, unset))
     msg = str(ei.value)
-    for name in ("risk_per_trade_pct", "max_stake_abs", "max_daily_loss_abs", "max_consecutive_losses",
-                 "max_open_positions", "max_trades_per_hour", "max_proposal_price_slippage",
-                 "stale_data_max_age_s", "min_net_payout_ratio", "reconcile_max_age_s",
-                 "recent_duplicate_window_s", "daily_reset_utc_hour"):
+    for name in names:
         assert name in msg
     assert SET_BY_OWNER in msg
+
+
+def test_the_committed_risk_file_holds_the_values_the_owner_approved():
+    """Approved by the owner in chat on 2026-11-05 (demo account). Changing a number here is a deliberate edit of this test."""
+    cfg = load_risk_config(ROOT / "config" / "risk.json")
+    assert (cfg.risk_per_trade_pct, cfg.max_stake_abs, cfg.max_daily_loss_abs) == (Decimal("0.01"), Decimal("1.00"), Decimal("5.00"))
+    assert (cfg.max_consecutive_losses, cfg.max_open_positions, cfg.max_trades_per_hour) == (3, 1, 20)
+    assert cfg.max_proposal_price_slippage == Decimal("0.02") and cfg.stale_data_max_age_s == 10
+    assert cfg.min_net_payout_ratio == Decimal("0.80") and cfg.reconcile_max_age_s == 120
+    assert cfg.recent_duplicate_window_s == 30 and cfg.daily_reset_utc_hour == 0
 
 
 def test_valid_config_loads_with_decimal_money(tmp_path):
