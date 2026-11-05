@@ -203,3 +203,18 @@ Matches HANDBOOK 2.4. WebSocket: proposal/proposal_open_contract/buy/sell 360 pe
 5. Public endpoint: `ticks_history` limits (item 5).
 6. OTP reuse and expiry error codes (item 6).
 7. Response schemas for items 4 and 7 from deriv-api-schemas.
+
+
+## First authenticated demo run (2026-11-05T12:08Z UTC, demo account only, no buy, no write endpoint)
+
+Commands: `python scripts/probe_auth_accounts.py` then `python scripts/probe_auth_demo.py`. Full redacted replies are in data/private/ (git-ignored, they hold account ids and balances). All items below are now OBSERVED on the live API, on the demo endpoint, once. One run is not proof of stability.
+
+- OBSERVED: an old-style 21 character API token is refused by the new API with HTTP 401, text/plain body "Invalid token format". A new PAT (68 characters, no `pat_` prefix check made) is accepted. Registered app type was web-based; the `Deriv-App-ID` header (alphanumeric App ID) was accepted.
+- OBSERVED: `GET /trading/v1/options/accounts` returns `{"data":[{"account_id","balance","currency","group","status","account_type"}],"meta":{...}}`. `account_type` is `demo` or `real` (item 199 of the checklist is answered). `balance` is a JSON STRING here. The same token sees the real account too, so a Trade PAT is not demo-restricted: the demo-only guarantee rests on our guards, not on the token.
+- OBSERVED: `POST .../accounts/{demo id}/otp` returned `data.url` that classifies as the exact demo endpoint. OTP lifetime and reuse: still UNVERIFIED (used once, immediately).
+- OBSERVED: on the demo WebSocket, `ping` answers `{"ping":"pong"}`; `balance` with `subscribe:0` answers `balance:{balance (JSON number), currency, loginid}` and loginid equals the configured demo account id. A JSON NUMBER here versus a string in the REST list: parse money from the raw JSON text into Decimal, never via float where precision matters.
+- OBSERVED: replies do not come back in request order (req_id 4 before req_id 3). Match by req_id only.
+- OBSERVED: `proposal` for CALL on 1HZ100V, 5 ticks, stake 1.00 USD: `ask_price` 1.0, `payout` 1.9 (net ratio 0.9, so break-even win probability about 52.6 percent), `validation_params` = `{"payout":{"max":"10000.00"},"stake":{"min":"0.35"}}`, plus `id`, `date_start`, `date_expiry`, `spot`, `longcode`, `contract_details.barrier`, and a `subscription.id`.
+- OBSERVED: minimum stake is 0.35 USD for that contract, found in `proposal.validation_params.stake.min` and also in the error for a too small stake. Error shape: `error.code` = `ContractBuyValidationError`, `error.details.field` = `amount`, `error.message` = "Please enter a stake amount that's at least 0.35.", and the error carries a `subscription.id`, so it must be forgotten (subscribe:1 was sent).
+- The existing parsers accepted all four real replies (balance as Decimal, proposal error raised as DerivApiError).
+- STILL UNVERIFIED: buy semantics and errors, settlement fields, portfolio and profit_table shapes, reconnect behavior, OTP reuse/expiry, rate limits, min stake for other contract types and symbols.
