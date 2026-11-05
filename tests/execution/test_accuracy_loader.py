@@ -52,3 +52,9 @@ async def test_an_event_inserted_out_of_order_is_caught(env):
                        "SELECT id, 'SETTLED', 'OPEN', 'SEND_BUY', '{}'::jsonb FROM order_intents"))
     local, events = load_local(env.engine, dt.datetime(2000, 1, 1, tzinfo=dt.UTC))
     assert "state_transitions_are_legal" in {c.name for c in run_checks(audit_data(env.engine, events, local)) if not c.passed}
+
+
+async def test_the_loader_attaches_the_limits_in_force_when_each_trade_was_decided(env):
+    await env.executor.submit(env.intent("d1"))
+    local, _ = load_local(env.engine, dt.datetime(2000, 1, 1, tzinfo=dt.UTC))
+    assert local[0].max_stake == D(EXEC_CFG["max_stake_abs"]) and local[0].risk_fraction == D(EXEC_CFG["risk_per_trade_pct"])

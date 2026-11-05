@@ -34,10 +34,12 @@ ROOT = Path(__file__).resolve().parents[3]
 LOCAL_SQL = text("""
 SELECT i.id::text, i.contract_type, i.stake, i.state, o.deriv_contract_id, o.buy_price, o.payout, o.profit, o.opened_at,
        i.created_at, rd.approved, rd.state_snapshot->>'balance',
-       (SELECT b.balance FROM balance_snapshots b WHERE b.ts = o.opened_at ORDER BY b.id LIMIT 1)
+       (SELECT b.balance FROM balance_snapshots b WHERE b.ts = o.opened_at ORDER BY b.id LIMIT 1),
+       cv.content->>'max_stake_abs', cv.content->>'risk_per_trade_pct'
 FROM order_intents i
 LEFT JOIN orders o ON o.intent_id = i.id
 LEFT JOIN risk_decisions rd ON rd.intent_id = i.id
+LEFT JOIN config_versions cv ON cv.id = rd.config_version_id
 WHERE i.created_at >= :since ORDER BY i.created_at, i.id""")
 
 
@@ -51,7 +53,7 @@ def load_local(engine, since: dt.datetime) -> tuple[list[LocalTrade], dict[str, 
         evs = c.execute(text("SELECT e.intent_id::text, e.from_state, e.event, e.to_state FROM order_events e "
                              "JOIN order_intents i ON i.id = e.intent_id WHERE i.created_at >= :since ORDER BY e.id"),
                         {"since": since}).all()
-    local = [LocalTrade(r[0], r[1], Decimal(str(r[2])), r[3], r[4], _d(r[5]), _d(r[6]), _d(r[7]), r[8], _d(r[12]), _d(r[11]), r[10], r[9])
+    local = [LocalTrade(r[0], r[1], Decimal(str(r[2])), r[3], r[4], _d(r[5]), _d(r[6]), _d(r[7]), r[8], _d(r[12]), _d(r[11]), r[10], r[9], _d(r[13]), _d(r[14]))
              for r in rows]
     events: dict[str, list[tuple[str | None, str, str]]] = {}
     for iid, frm, ev, to in evs:

@@ -190,3 +190,19 @@ def test_render_lists_every_check_and_the_verdict():
     d = good()
     d.exchange = d.exchange[:-1]
     assert "FAIL  exchange_has_every_settled_trade" in render(run_checks(d), 3) and "FAILED" in render(run_checks(d), 3)
+
+
+def test_each_trade_is_judged_by_the_limits_in_force_when_it_was_decided():
+    """Found on the live account: the cap was raised from 1.00 to 25.00 and the audit wrongly failed the older trades."""
+    d = good()                                                    # the audit's default (today's) cap is 1.00 here
+    d.max_stake = D("25.00")                                      # today's cap is now much higher
+    assert "stake_matches_sizing_rule" in failed(d)               # judged by today's cap, the old 1.00 stakes look wrong
+    d.local = [replace(t, max_stake=D("1.00"), risk_fraction=D("0.01")) for t in d.local]
+    assert "stake_matches_sizing_rule" not in failed(d)           # judged by the cap in force then, they are right
+
+
+def test_a_stake_that_breaks_the_limit_in_force_at_the_time_is_still_caught():
+    d = good()
+    d.local = [replace(t, max_stake=D("1.00"), risk_fraction=D("0.01")) for t in d.local]
+    d.local[1] = replace(d.local[1], stake=D("2.00"))             # above the cap that was in force
+    assert "stake_matches_sizing_rule" in failed(d)

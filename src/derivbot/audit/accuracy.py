@@ -46,6 +46,8 @@ class LocalTrade:
     balance_before_decision: Decimal | None = None
     risk_approved: bool | None = None
     created_at: dt.datetime | None = None
+    max_stake: Decimal | None = None          # the stake cap and risk fraction IN FORCE when this trade was decided
+    risk_fraction: Decimal | None = None      # (from the config version stored with its risk decision)
 
 
 @dataclass(frozen=True)
@@ -179,7 +181,8 @@ def check_stake_sizing(d: AuditData) -> Check:
         if t.balance_before_decision is None or t.risk_approved is not True:
             continue
         n += 1
-        want = expected_stake(t.balance_before_decision, d.risk_fraction, d.max_stake)
+        # Judge each trade by the config that was in force when it was decided, not today's: limits change over time.
+        want = expected_stake(t.balance_before_decision, t.risk_fraction or d.risk_fraction, t.max_stake or d.max_stake)
         if t.stake != want:
             bad.append(f"{t.intent_id[:8]}: stake {t.stake}, expected {want} from balance {t.balance_before_decision}")
     return Check("stake_matches_sizing_rule", not bad, n, _ids(bad, 2))
