@@ -7,6 +7,7 @@ A rebuild from scratch of a Deriv trading bot, built to be tested and audited be
 - The trading service, risk engine, order state machine, executor, reconciler, kill switch, notifier and admin API are built and tested against a fake Deriv server with failure injection.
 - Verified once on the live **demo** API: account list, OTP, WebSocket connection, balance, minimum stake, one 0.35 USD contract end to end through the real executor path. Details and the remaining unknowns are in [docs/api-notes.md](docs/api-notes.md).
 - **No strategy is approved, so the bot places no trades.** Strategies are coded as pure deterministic functions and pre-registered in [docs/hypotheses/](docs/hypotheses/INDEX.md). They stay blocked until the statistical Gate 1 reports and the owner approves in [docs/approvals.md](docs/approvals.md).
+- A private dashboard (phone and laptop) shows the demo and real balances (real is view only), P&L, trades, system health and a kill switch. It is reached through an SSH tunnel, see [docs/runbook.md](docs/runbook.md) section 12.8.
 - Current state and the resume point: [STATE.md](STATE.md).
 
 ## Rules the code enforces

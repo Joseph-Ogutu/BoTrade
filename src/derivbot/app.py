@@ -38,6 +38,7 @@ from derivbot.db.config_store import store_config
 from derivbot.db.engine import make_engine
 from derivbot.deriv.ratelimit import DEFAULT_LIMITS, RateLimiter
 from derivbot.deriv.session import DerivSession, SessionSupervisor
+from derivbot.execution.balance_history import BalanceHistory
 from derivbot.execution.executor import Executor, ExecutorDeps
 from derivbot.execution.feeds import SignalRunner, TickFreshness
 from derivbot.execution.reconciler import Reconciler
@@ -237,7 +238,8 @@ async def run(app: App, halt: asyncio.Event, api_port: int = 8787) -> None:
     tasks = [asyncio.create_task(c, name=n) for n, c in [
         ("api", server.serve()), ("flag_file", watch_flag_file(app.kill_switch, halt)), ("notifier", app.notifier.run(halt)),
         ("heartbeat", app.heartbeater.run(halt)), ("reconcile", app.reconciler.run_periodic(halt)),
-        ("report", _report_loop(app, halt))]]
+        ("report", _report_loop(app, halt)),
+        ("balance_history", BalanceHistory(app.engine, app.verifier.get_info, app.settings.deriv_account_id_demo or "").run(halt))]]
     if app.supervisor:
         tasks.append(asyncio.create_task(app.supervisor.run(halt), name="session"))
     if app.poller:
