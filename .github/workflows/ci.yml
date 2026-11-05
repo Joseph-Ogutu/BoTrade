@@ -43,7 +43,7 @@ jobs:
       - name: tests and coverage (100% branch on risk rules and stake)
         run: PY=python scripts/check_risk_coverage.sh
       - name: dependency audit
-        run: pip-audit -r requirements-bot.txt -r requirements-collector.txt -r requirements-dev.txt --no-deps --disable-pip
+        run: python -m pip_audit -r requirements-bot.txt -r requirements-collector.txt -r requirements-dev.txt --no-deps --disable-pip
       - name: secret scan (whole history)
         run: python scripts/scan_history.py --strict
       - name: compose files are valid

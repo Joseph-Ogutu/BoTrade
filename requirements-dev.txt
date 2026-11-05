@@ -18,3 +18,4 @@ ruff==0.17.3
 SQLAlchemy==2.0.55
 starlette==1.10.0
 uvicorn==0.54.0
+pip-audit==2.10.1
