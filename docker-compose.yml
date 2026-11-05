@@ -115,6 +115,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       PIPELINE_SOAK: ${PIPELINE_SOAK:-0}          # 1 = random demo trades to exercise the machinery (NOT a strategy)
       SOAK_INTERVAL_S: ${SOAK_INTERVAL_S:-300}
+      AUDIT_INTERVAL_S: ${AUDIT_INTERVAL_S:-21600}   # accuracy audit every 6 hours, verdict shown on the dashboard
       KILL_SWITCH_PATH: /state/KILL_SWITCH
       ADMIN_API_BIND: container
       TZ: UTC

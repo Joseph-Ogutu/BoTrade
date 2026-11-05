@@ -102,6 +102,7 @@ class App:
     signal_runner: SignalRunner | None
     notes: list[str] = field(default_factory=list)
     soak: Any = None
+    audit: Any = None
 
     def status(self) -> dict[str, Any]:
         info = self.verifier.get_info()
@@ -209,6 +210,20 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
         soak = SoakTrader(executor.submit, settings.deriv_account_id_demo or "", ks.is_engaged,
                           lambda: bool(supervisor.session), interval_s=float(os.environ.get("SOAK_INTERVAL_S", "300")))
 
+    from derivbot.audit.__main__ import audit_once
+    from derivbot.audit.loop import AuditLoop
+
+    audit_loop = None
+    if supervisor is not None:
+        async def run_audit():
+            session = supervisor.session
+            if session is None:
+                return [], 0
+            return await audit_once(engine, risk_cfg, session, dt.datetime(2000, 1, 1, tzinfo=dt.UTC))
+
+        audit_loop = AuditLoop(run_audit, kv, notifier.submit, lambda: bool(supervisor.session),
+                               interval_s=float(os.environ.get("AUDIT_INTERVAL_S", str(6 * 3600))))
+
     app_box: dict[str, App] = {}
     accounts_view = None
     if settings.deriv_app_id_demo and settings.deriv_pat_demo:
@@ -222,6 +237,9 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
         with engine.connect() as conn:
             out = build_summary(conn, dt.datetime.now(dt.UTC))
         out["accounts"] = accounts_view.get() if accounts_view else None
+        from derivbot.audit.loop import last_verdict
+
+        out["audit"] = last_verdict(kv)
         return out
 
     hash_file = Path(os.environ.get("DASHBOARD_PASSWORD_HASH_FILE", ""))
@@ -247,7 +265,7 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
     hb = Heartbeater(HeartbeatKV(kv, ttl_s=60), "bot", notifier, lambda: {"signals": "on" if runner else "off"}, interval_s=10)
     reporter = DailyReporter(notifier, engine, kv, hour_utc=risk_cfg.daily_reset_utc_hour)
     app = App(settings, engine, kv, ks, notifier, executor, reconciler, supervisor, verifier, fresh, hb, reporter, api, poller, runner, notes,
-              soak=soak)
+              soak=soak, audit=audit_loop)
     app_box["a"] = app
     return app
 
@@ -278,6 +296,8 @@ async def run(app: App, halt: asyncio.Event, api_port: int = 8787) -> None:
         tasks.append(asyncio.create_task(app.supervisor.run(halt), name="session"))
     if app.soak:
         tasks.append(asyncio.create_task(app.soak.run(halt), name="soak"))
+    if app.audit:
+        tasks.append(asyncio.create_task(app.audit.run(halt), name="audit"))
     if app.poller:
         tasks.append(asyncio.create_task(app.poller.run(halt), name="telegram"))
     for note in app.notes:

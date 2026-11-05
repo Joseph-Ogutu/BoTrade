@@ -74,6 +74,19 @@ async def load_exchange(session: DerivSession, contract_ids: list[int]) -> tuple
     return ex, facts
 
 
+async def audit_once(engine, cfg, session: DerivSession, since: dt.datetime) -> tuple[list, int]:
+    """Run every check with an already connected session. Returns (checks, number of trades audited). Read only."""
+    local, events = load_local(engine, since)
+    if not local:
+        return [], 0
+    ids = [t.contract_id for t in local if t.contract_id is not None and t.state == "SETTLED"]
+    exchange, facts = await load_exchange(session, ids)
+    starts = [int(t.opened_at.timestamp()) for t in local if t.opened_at]
+    data = AuditData(local, exchange, facts, events, cfg.risk_per_trade_pct, cfg.max_stake_abs,
+                     window_start_epoch=(min(starts) - 5) if starts else 0)
+    return run_checks(data), len(local)
+
+
 async def amain(since: dt.datetime) -> int:
     env = dict(os.environ)
     if os.environ.get("ENV_FILE"):
@@ -81,23 +94,17 @@ async def amain(since: dt.datetime) -> int:
     settings = load_settings(env)
     cfg = load_risk_config(ROOT / "config" / "risk.json")
     engine = make_engine(settings.database_url.get_secret_value())
-    local, events = load_local(engine, since)
-    if not local:
-        print("no trades recorded since", since.isoformat(), "- nothing to audit yet")
-        return 0
     provider = HttpOtpProvider.from_settings(settings)
     session = DerivSession(provider.get_url, endpoint_classifier=partial(classify_url, policy=PROD_POLICY))
     await session.connect()
     try:
-        ids = [t.contract_id for t in local if t.contract_id is not None and t.state == "SETTLED"]
-        exchange, facts = await load_exchange(session, ids)
+        checks, n = await audit_once(engine, cfg, session, since)
     finally:
         await session.close()
-    starts = [int(t.opened_at.timestamp()) for t in local if t.opened_at]
-    data = AuditData(local, exchange, facts, events, cfg.risk_per_trade_pct, cfg.max_stake_abs,
-                     window_start_epoch=(min(starts) - 5) if starts else 0)
-    checks = run_checks(data)
-    print(render(checks, len(local)))
+    if not n:
+        print("no trades recorded since", since.isoformat(), "- nothing to audit yet")
+        return 0
+    print(render(checks, n))
     return 0 if all(c.passed for c in checks) else 1
 
 

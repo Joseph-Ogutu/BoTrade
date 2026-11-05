@@ -162,6 +162,7 @@ footer{margin-top:18px;color:var(--muted);font-size:.78rem;text-align:center}
             <li><span class="k">Last reconcile</span><span class="pill" id="sRecon">-</span></li>
             <li><span class="k">Market data</span><span class="pill" id="sTick">-</span></li>
             <li><span class="k">Strategies</span><span class="pill" id="sSig">-</span></li>
+            <li><span class="k">Accuracy audit</span><span class="pill" id="sAudit">-</span></li>
           </ul>
         </div>
         <div class="card"><h2>Risk rejections today</h2><ul class="rej" id="rej"></ul></div>
@@ -274,7 +275,12 @@ function render(d){
   var ra=d.reconcile_age_s;pill($("sRecon"),ra===null||ra===undefined?"warn":(ra>120?"warn":"ok"),secs(ra));
   var ta=d.tick_age_s;pill($("sTick"),ta===null||ta===undefined?"warn":(ta>10?"warn":"ok"),ta===null||ta===undefined?"no ticks":secs(ta));
   pill($("sSig"),d.signals==="on"?"ok":(d.signals==="soak"?"warn":""),d.signals==="on"?"running":(d.signals==="soak"?"pipeline soak: random demo trades":"off, none approved"));
+  var au=d.audit;
+  if(!au)pill($("sAudit"),"","pending");
+  else if(au.passed)pill($("sAudit"),"ok","passed, "+ago(au.at));
+  else pill($("sAudit"),"bad","FAILED: "+au.failed.map(function(f){return f.name.replace(/_/g," ")}).join(", "));
   var bn=$("banner"),msg=[];
+  if(au&&!au.passed)msg.push("The accuracy audit failed ("+au.trades+" trades). Records and the exchange disagree.");
   if(ks.engaged)msg.push("Kill switch is engaged: no new trades.");
   if(d.last_session_error)msg.push("Last session problem: "+d.last_session_error);
   bn.textContent=msg.join(" ");bn.classList.toggle("show",msg.length>0);
