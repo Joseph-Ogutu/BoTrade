@@ -28,10 +28,11 @@ def main() -> int:
         print("The two entries differ. Nothing was changed.")
         return 1
     TARGET.parent.mkdir(mode=0o700, exist_ok=True)
-    tmp = TARGET.with_suffix(".new")
-    tmp.write_text(hash_password(pw) + "\n")
-    os.chmod(tmp, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)    # the container's non-root user must read it
-    os.replace(tmp, TARGET)
+    # Write INTO the existing file, never replace it: a container sees a mounted file by its inode, so a replaced file
+    # would leave the running bot reading the old (empty) one until it is restarted.
+    with open(TARGET, "w") as f:
+        f.write(hash_password(pw) + "\n")
+    os.chmod(TARGET, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)    # the container's non-root user must read it
     print(f"Saved a salted hash to {TARGET.relative_to(ROOT)}. Existing logins are signed out. You can log in now.")
     return 0
 

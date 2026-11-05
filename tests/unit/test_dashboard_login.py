@@ -155,3 +155,24 @@ def test_a_missing_credential_is_not_counted_as_a_guess(tmp_path):
     for _ in range(20):
         assert c.get("/status").status_code == 401               # the page probes without credentials when it loads
     assert c.post("/api/login", json={"password": PW}).status_code == 200
+
+
+def test_the_password_script_writes_into_the_existing_file_so_a_mounted_container_sees_it(tmp_path, monkeypatch):
+    import importlib.util
+    import os
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location("setpw", Path(__file__).resolve().parents[2] / "scripts" / "set_dashboard_password.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    target = tmp_path / "secrets" / "dashboard_password_hash"
+    target.parent.mkdir()
+    target.write_text("")
+    inode = os.stat(target).st_ino
+    monkeypatch.setattr(mod, "ROOT", tmp_path)
+    monkeypatch.setattr(mod, "TARGET", target)
+    answers = iter(["a long enough passphrase 1", "a long enough passphrase 1"])
+    monkeypatch.setattr(mod.getpass, "getpass", lambda prompt="": next(answers))
+    assert mod.main() == 0
+    assert os.stat(target).st_ino == inode                       # same file, not a replacement
+    assert verify_password("a long enough passphrase 1", target.read_text().strip())
