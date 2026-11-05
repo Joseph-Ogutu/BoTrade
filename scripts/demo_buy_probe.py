@@ -14,7 +14,6 @@ import secrets
 import sys
 import time
 from datetime import UTC, datetime
-from decimal import Decimal
 from functools import partial
 from pathlib import Path
 
