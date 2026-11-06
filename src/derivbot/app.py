@@ -219,7 +219,7 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
             session = supervisor.session
             if session is None:
                 return [], 0
-            return await audit_once(engine, risk_cfg, session, dt.datetime(2000, 1, 1, tzinfo=dt.UTC))
+            return await audit_once(engine, risk_cfg, session, dt.datetime(2000, 1, 1, tzinfo=dt.UTC), kv)
 
         audit_loop = AuditLoop(run_audit, kv, notifier.submit, lambda: bool(supervisor.session),
                                interval_s=float(os.environ.get("AUDIT_INTERVAL_S", str(6 * 3600))))

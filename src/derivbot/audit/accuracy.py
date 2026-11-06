@@ -14,6 +14,7 @@ Checks (all exact Decimal comparisons, no tolerance on money):
   state_transitions_are_legal        every recorded transition is in the order state machine's table
   exposed_intents_were_risk_approved every intent that reached a buy has an approved risk decision
   no_duplicate_contracts             one contract id belongs to one order
+  outcome_coverage_complete          every settled trade could be checked against the exchange's entry and exit prices
   clock_skew_within_tolerance        our clock vs the exchange's purchase time stays inside the executor's tolerance
   nothing_stuck                      no intent left in BUY_SENT, BUY_UNKNOWN or MANUAL_REVIEW
 """
@@ -138,6 +139,16 @@ def check_profit_formula(d: AuditData) -> Check:
     return Check("profit_formula_holds", not bad, len(s), _ids(bad, 2))
 
 
+def check_outcome_coverage(d: AuditData) -> Check:
+    """A check that silently examines fewer trades than exist proves less than it says. Found on the live account: a rate limit
+    left 24 of 114 trades without prices and the outcome check still passed. Missing coverage is now its own visible failure."""
+    s = _settled(d)
+    missing = [t.contract_id for t in s if (f := d.facts.get(t.contract_id)) is None or f.entry_spot is None or f.exit_spot is None]  # type: ignore[arg-type]
+    return Check("outcome_coverage_complete", not missing, len(s),
+                 "" if not missing else f"{len(missing)} of {len(s)} trades could not be verified (no entry or exit price from the exchange; "
+                                        f"retry later), e.g. {_ids(missing)}")
+
+
 def check_outcome_matches_rule(d: AuditData) -> Check:
     bad, n = [], 0
     for t in _settled(d):
@@ -243,7 +254,7 @@ def check_nothing_stuck(d: AuditData) -> Check:
 
 
 ALL_CHECKS = (check_exchange_has_every_settled_trade, check_no_unknown_trades, check_money_fields_match, check_profit_formula,
-              check_outcome_matches_rule, check_balance_chain, check_stake_sizing, check_transitions_legal,
+              check_outcome_coverage, check_outcome_matches_rule, check_balance_chain, check_stake_sizing, check_transitions_legal,
               check_exposed_were_approved, check_no_duplicate_contracts, check_clock_skew, check_nothing_stuck)
 
 

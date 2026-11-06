@@ -30,7 +30,9 @@ def make(limits=None, margin=1.0):
 
 def test_group_mapping_matches_handbook():
     assert group_for("proposal") == "trading"
-    assert group_for("proposal_open_contract") == "trading"
+    # Changed on purpose 2026-11-06: the server rate-limited proposal_open_contract after about 97 requests in 57 s, far below the
+    # published trading budget, so it has its own lower group (see the note in deriv/ratelimit.py).
+    assert group_for("proposal_open_contract") == "contract"
     assert group_for("buy") == "trading"
     assert group_for("sell") == "trading"
     assert group_for("balance") == "account"

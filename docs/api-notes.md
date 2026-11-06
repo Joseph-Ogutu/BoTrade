@@ -233,3 +233,11 @@ OBSERVED (live demo, once):
 - The executor, reconciler (startup run), minimum-stake probe and demo-connection verifier all ran against the live API without a parse error.
 
 STILL UNVERIFIED: a WON contract's final message; buy error shapes (price moved, expired proposal, insufficient balance, market closed); what happens to a buy when the connection drops; OTP reuse and expiry; subscriptions after reconnect; rate-limit rejection; behaviour of the clock tolerance (purchase_time vs our clock was not measured).
+
+
+## Rate limit on proposal_open_contract (observed 2026-11-06 UTC, demo)
+
+- OBSERVED: a loop asking for each of 116 contracts' final prices (one `proposal_open_contract` request per contract, about 0.58 s apiece, no subscription) was answered normally until request 98, then every request failed with `error.code` `RateLimit`, message "You have reached the rate limit for proposal_open_contract." The failing run lasted to the last request (18 failures in a row, about 9 seconds). After a pause, a single request for one of the failed contracts succeeded and returned the full data (`status` "won", entry and exit spots, `is_sold` 1).
+- The published limits page lists a "trading" budget of 360 a minute that the bot's limiter used for this message type. The server clearly applies a lower budget to `proposal_open_contract` (about 100 requests a minute or less). The exact value, and whether the window is rolling, are UNVERIFIED. The limiter now has a separate group for contract lookups at 60 a minute before its 0.8 safety factor.
+- The reply shape is the generic error shape: `{"error": {"code": "RateLimit", "message": ...}, "msg_type": ..., "req_id": ...}` with no `proposal_open_contract` object, so a client that does not look at `error` sees missing prices.
+- Consequence found and fixed: the accuracy audit lost coverage silently (24 of 114 trades unchecked) while still reporting a pass. It now retries with back-off, caches each settled contract's prices permanently, and has a coverage check that fails when any settled trade could not be verified.

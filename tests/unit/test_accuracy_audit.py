@@ -59,7 +59,7 @@ def failed(d):
 def test_clean_data_passes_every_check_and_every_check_looked_at_something():
     r = results(good())
     assert all(c.passed for c in r.values()), [c for c in r.values() if not c.passed]
-    assert len(r) == len(ALL_CHECKS) == 12
+    assert len(r) == len(ALL_CHECKS) == 13
     assert all(c.checked > 0 for c in r.values())                      # a check that examines nothing proves nothing
 
 
@@ -186,7 +186,7 @@ def test_an_intent_stuck_in_an_uncertain_state_is_caught():
 
 def test_render_lists_every_check_and_the_verdict():
     text = render(run_checks(good()), 3)
-    assert text.count("  PASS  ") == 12 and "ALL PASSED" in text
+    assert text.count("  PASS  ") == 13 and "ALL PASSED" in text
     d = good()
     d.exchange = d.exchange[:-1]
     assert "FAIL  exchange_has_every_settled_trade" in render(run_checks(d), 3) and "FAILED" in render(run_checks(d), 3)
@@ -206,3 +206,19 @@ def test_a_stake_that_breaks_the_limit_in_force_at_the_time_is_still_caught():
     d.local = [replace(t, max_stake=D("1.00"), risk_fraction=D("0.01")) for t in d.local]
     d.local[1] = replace(d.local[1], stake=D("2.00"))             # above the cap that was in force
     assert "stake_matches_sizing_rule" in failed(d)
+
+
+def test_missing_prices_are_a_visible_failure_not_a_silent_shortfall():
+    """Found on the live account: a rate limit left 24 of 114 trades without prices and the outcome check still passed."""
+    d = good()
+    del d.facts[1002]
+    r = results(d)
+    assert not r["outcome_coverage_complete"].passed and "1 of 3" in r["outcome_coverage_complete"].detail
+    assert r["outcome_matches_contract_rule"].checked == 2                       # it still reports how little it examined
+    d = good()
+    d.facts[1003] = ContractFacts(1003, "CALL", None, None, "won")               # an answer with no prices counts as missing
+    assert "outcome_coverage_complete" in failed(d)
+
+
+def test_full_coverage_passes_the_coverage_check():
+    assert results(good())["outcome_coverage_complete"].passed

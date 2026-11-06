@@ -61,7 +61,47 @@ def load_local(engine, since: dt.datetime) -> tuple[list[LocalTrade], dict[str, 
     return local, events
 
 
-async def load_exchange(session: DerivSession, contract_ids: list[int]) -> tuple[list[ExchangeTrade], dict[int, ContractFacts]]:
+FACT_KEY = "audit:fact:"
+FACT_TTL_S = 30 * 86400
+MAX_TRIES = 4
+BACKOFF_S = 20.0
+
+
+def _fact_to_json(f: ContractFacts) -> str:
+    import json
+    return json.dumps({"t": f.contract_type, "e": str(f.entry_spot), "x": str(f.exit_spot), "s": f.status})
+
+
+def _fact_from_json(cid: int, raw: str) -> ContractFacts | None:
+    import json
+    try:
+        j = json.loads(raw)
+        return ContractFacts(cid, str(j["t"]), Decimal(j["e"]), Decimal(j["x"]), j.get("s"))
+    except (ValueError, KeyError, TypeError, ArithmeticError):
+        return None
+
+
+async def _fetch_facts(session: DerivSession, cid: int, sleep) -> ContractFacts | None:
+    """One contract's final prices. On a RateLimit reply it waits and tries again, so a burst never leaves silent gaps."""
+    for attempt in range(MAX_TRIES):
+        r = await session.request({"proposal_open_contract": 1, "contract_id": cid, "req_id": session.next_req_id()}, timeout=20)
+        err = r.get("error")
+        if err:
+            if err.get("code") == "RateLimit" and attempt < MAX_TRIES - 1:
+                await sleep(BACKOFF_S * (attempt + 1))
+                continue
+            return None
+        p = r.get("proposal_open_contract") or {}
+        entry, exit_, status = _d(p.get("entry_spot")), _d(p.get("exit_spot")), p.get("status")
+        return ContractFacts(cid, str(p.get("contract_type", "")), entry, exit_, status)
+    return None
+
+
+async def load_exchange(session: DerivSession, contract_ids: list[int], kv=None, sleep=asyncio.sleep,
+                        spacing_s: float = 1.2) -> tuple[list[ExchangeTrade], dict[int, ContractFacts]]:
+    """The exchange's profit table plus each contract's entry and exit price. A settled contract never changes, so its prices
+    are cached in the key value store: after the first run only NEW trades are asked about, which keeps the audit far inside
+    the contract lookup budget (see deriv/ratelimit.py)."""
     reply = await session.request(m.req_profit_table(session.next_req_id(), limit=500), timeout=20)
     rows = (reply.get("profit_table") or {}).get("transactions") or []
     ex = [ExchangeTrade(int(r["contract_id"]), Decimal(str(r["buy_price"])), Decimal(str(r["payout"])),
@@ -69,20 +109,27 @@ async def load_exchange(session: DerivSession, contract_ids: list[int]) -> tuple
           if all(k in r for k in ("contract_id", "buy_price", "payout", "sell_price", "purchase_time"))]
     facts: dict[int, ContractFacts] = {}
     for cid in contract_ids:
-        r = await session.request({"proposal_open_contract": 1, "contract_id": cid, "req_id": session.next_req_id()}, timeout=20)
-        p = r.get("proposal_open_contract") or {}
-        facts[cid] = ContractFacts(cid, str(p.get("contract_type", "")), _d(p.get("entry_spot")), _d(p.get("exit_spot")), p.get("status"))
-        await asyncio.sleep(0.3)                                          # stay well inside the rate budget
+        raw = kv.get(FACT_KEY + str(cid)) if kv is not None else None
+        cached = _fact_from_json(cid, raw) if raw else None
+        if cached is not None:
+            facts[cid] = cached
+            continue
+        f = await _fetch_facts(session, cid, sleep)
+        if f is not None:
+            facts[cid] = f
+            if kv is not None and f.entry_spot is not None and f.exit_spot is not None and f.status in ("won", "lost"):
+                kv.set(FACT_KEY + str(cid), _fact_to_json(f), FACT_TTL_S)         # final: safe to keep
+        await sleep(spacing_s)                                                  # stay well inside the lookup budget
     return ex, facts
 
 
-async def audit_once(engine, cfg, session: DerivSession, since: dt.datetime) -> tuple[list, int]:
+async def audit_once(engine, cfg, session: DerivSession, since: dt.datetime, kv=None) -> tuple[list, int]:
     """Run every check with an already connected session. Returns (checks, number of trades audited). Read only."""
     local, events = load_local(engine, since)
     if not local:
         return [], 0
     ids = [t.contract_id for t in local if t.contract_id is not None and t.state == "SETTLED"]
-    exchange, facts = await load_exchange(session, ids)
+    exchange, facts = await load_exchange(session, ids, kv)
     starts = [int(t.opened_at.timestamp()) for t in local if t.opened_at]
     data = AuditData(local, exchange, facts, events, cfg.risk_per_trade_pct, cfg.max_stake_abs,
                      window_start_epoch=(min(starts) - 5) if starts else 0)
@@ -96,11 +143,19 @@ async def amain(since: dt.datetime, store: bool = False) -> int:
     settings = load_settings(env)
     cfg = load_risk_config(ROOT / "config" / "risk.json")
     engine = make_engine(settings.database_url.get_secret_value())
+    import redis
+
+    from derivbot.audit.loop import store_verdict
+    from derivbot.deriv.ratelimit import DEFAULT_LIMITS, RateLimiter
+    from derivbot.kv.store import RedisStore
+
+    kv = RedisStore(redis.Redis.from_url(settings.redis_url.get_secret_value(), socket_connect_timeout=3))
     provider = HttpOtpProvider.from_settings(settings)
-    session = DerivSession(provider.get_url, endpoint_classifier=partial(classify_url, policy=PROD_POLICY))
+    session = DerivSession(provider.get_url, limiter=RateLimiter(DEFAULT_LIMITS),
+                           endpoint_classifier=partial(classify_url, policy=PROD_POLICY))
     await session.connect()
     try:
-        checks, n = await audit_once(engine, cfg, session, since)
+        checks, n = await audit_once(engine, cfg, session, since, kv)
     finally:
         await session.close()
     if not n:
@@ -108,13 +163,7 @@ async def amain(since: dt.datetime, store: bool = False) -> int:
         return 0
     print(render(checks, n))
     if store:
-        import redis
-
-        from derivbot.audit.loop import store_verdict
-        from derivbot.kv.store import RedisStore
-
-        store_verdict(RedisStore(redis.Redis.from_url(settings.redis_url.get_secret_value(), socket_connect_timeout=3)), checks, n,
-                      dt.datetime.now(dt.UTC))
+        store_verdict(kv, checks, n, dt.datetime.now(dt.UTC))
         print("verdict stored: the dashboard now shows this result")
     return 0 if all(c.passed for c in checks) else 1
 

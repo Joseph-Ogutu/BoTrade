@@ -37,6 +37,11 @@ DEFAULT_LIMITS: dict[str, LimitConfig] = {
     "trading": LimitConfig(per_minute=360, per_hour=14_400),
     "account": LimitConfig(per_minute=100, per_hour=2_000),
     "portfolio": LimitConfig(per_minute=30, per_hour=1_500),
+    # OBSERVED 2026-11-06 (UTC): on a connection with no client limit the server answered error code RateLimit, message
+    # "You have reached the rate limit for proposal_open_contract.", after about 97 such requests in 57 seconds. That is far
+    # below the published "trading" budget of 360 a minute, so proposal_open_contract evidently has its own, lower budget.
+    # 60 a minute leaves a margin (before the 0.8 safety factor). The exact server value is UNVERIFIED.
+    "contract": LimitConfig(per_minute=60, per_hour=1_800),
     "other": LimitConfig(per_minute=220, per_hour=14_400),
     # ping is outside the budgets: 10 per second per connection
     "ping": LimitConfig(per_minute=600, per_hour=36_000, per_second=10),
@@ -44,7 +49,7 @@ DEFAULT_LIMITS: dict[str, LimitConfig] = {
 
 _GROUPS = {
     "proposal": "trading",
-    "proposal_open_contract": "trading",
+    "proposal_open_contract": "contract",
     "buy": "trading",
     "sell": "trading",
     "balance": "account",
