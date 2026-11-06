@@ -113,16 +113,21 @@ def test_demo_only_features_are_refused_inside_a_real_process(fresh_db_url, tmp_
         build_real(fresh_db_url, real_root(tmp_path))
 
 
-def test_the_shipped_real_risk_template_fails_loudly_until_the_owner_sets_the_stake_rules():
+def test_the_shipped_real_risk_file_loads_inside_the_hard_ceilings_and_an_unset_value_still_fails_loudly(tmp_path):
     from derivbot.config.risk import load_risk_config
+    from derivbot.guard import real_limits
 
     root = Path(__file__).resolve().parents[2]
-    with pytest.raises(RiskConfigError) as e:
-        load_risk_config(root / "config" / "risk.real.json")
-    for name in ("risk_per_trade_pct", "max_stake_abs", "max_daily_loss_pct_of_start_balance", "max_consecutive_losses"):
-        assert name in str(e.value)
     shipped = json.loads((root / "config" / "risk.real.json").read_text())
-    assert (shipped["max_trades_per_day"], shipped["max_losses_per_day"], shipped["max_consecutive_wins_per_day"]) == (5, 2, 3)
+    cfg = load_risk_config(root / "config" / "risk.real.json")                      # the owner's values (2026-11-06)
+    assert (cfg.max_trades_per_day, cfg.max_losses_per_day, cfg.max_consecutive_wins_per_day) == (5, 2, 3)
+    assert real_limits is not None and shipped["max_open_positions"] == 1
+    unset = dict(shipped, max_stake_abs="SET_BY_OWNER", risk_per_trade_pct="SET_BY_OWNER")
+    f = tmp_path / "risk.json"
+    f.write_text(json.dumps(unset))
+    with pytest.raises(RiskConfigError) as e:
+        load_risk_config(f)
+    assert "max_stake_abs" in str(e.value) and "risk_per_trade_pct" in str(e.value)
 
 
 # ---------------------------------------------------------------- a real process against the fake exchange

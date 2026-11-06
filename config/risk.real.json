@@ -1,19 +1,19 @@
 {
-  "risk_per_trade_pct": "SET_BY_OWNER",
-  "max_stake_abs": "SET_BY_OWNER",
+  "risk_per_trade_pct": "0.15",
+  "max_stake_abs": "5.00",
   "min_stake_abs": null,
   "max_daily_loss_abs": null,
-  "max_daily_loss_pct_of_start_balance": "SET_BY_OWNER",
-  "max_consecutive_losses": "SET_BY_OWNER",
+  "max_daily_loss_pct_of_start_balance": "0.30",
+  "max_consecutive_losses": 2,
   "max_open_positions": 1,
-  "max_trades_per_hour": "SET_BY_OWNER",
+  "max_trades_per_hour": 3,
   "max_trades_per_day": 5,
   "max_losses_per_day": 2,
   "max_consecutive_wins_per_day": 3,
   "max_proposal_price_slippage": "0.02",
-  "stale_data_max_age_s": "SET_BY_OWNER",
+  "stale_data_max_age_s": 5,
   "min_net_payout_ratio": "0.80",
-  "reconcile_max_age_s": "SET_BY_OWNER",
-  "recent_duplicate_window_s": "SET_BY_OWNER",
-  "daily_reset_utc_hour": "SET_BY_OWNER"
+  "reconcile_max_age_s": 60,
+  "recent_duplicate_window_s": 30,
+  "daily_reset_utc_hour": 0
 }
