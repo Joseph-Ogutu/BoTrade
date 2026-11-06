@@ -1,0 +1,10 @@
+[Unit]
+Description=derivbot forward-test evaluation and strategy approval
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=deploy
+WorkingDirectory=/opt/derivbot
+ExecStart=/opt/derivbot/scripts/forward_daily.sh

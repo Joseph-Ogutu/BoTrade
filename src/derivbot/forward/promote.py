@@ -36,9 +36,7 @@ def promote(conn: Connection, lock: dict[str, Any], strategies_path: Path) -> di
     added = {k: v for k, v in passed_strategies(conn, lock).items() if k not in approved}
     if added:
         approved.update(added)
-        tmp = strategies_path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"approved": approved}, indent=2, sort_keys=True) + "\n")
-        os.replace(tmp, strategies_path)
+        strategies_path.write_text(json.dumps({"approved": approved}, indent=2, sort_keys=True) + "\n")     # in place: the file may be a bind mount
     return added
 
 
@@ -46,14 +44,16 @@ def main() -> int:  # pragma: no cover - exercised on the server
     from derivbot.config.settings import load_settings, parse_env_file
     from derivbot.db.engine import make_engine
 
-    argparse.ArgumentParser(description="Approve strategies whose forward-test PASS is recorded.").parse_args()
+    ap = argparse.ArgumentParser(description="Approve strategies whose forward-test PASS is recorded.")
+    ap.add_argument("--strategies", default=str(ROOT / "config" / "strategies.json"), help="approvals file to update")
+    args = ap.parse_args()
     env = dict(os.environ)
     if os.environ.get("ENV_FILE"):
         env = {**parse_env_file(os.environ["ENV_FILE"]), **env}
     engine = make_engine(load_settings(env).database_url.get_secret_value())
     lock = json.loads((ROOT / "docs" / "forward_test_lock.json").read_text())
     with engine.connect() as conn:
-        added = promote(conn, lock, ROOT / "config" / "strategies.json")
+        added = promote(conn, lock, Path(args.strategies))
     print("approved now: " + (", ".join(f"{k} v{v}" for k, v in added.items()) or "none"))
     return 0
 

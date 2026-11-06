@@ -182,6 +182,7 @@ services:
     volumes:
       - botstate:/state
       - ${REAL_APPROVAL_FILE:-/dev/null}:/app/REAL_TRADING_APPROVED:ro     # the owner's file; /dev/null (not a file) means "no approval"
+      - ./config/strategies.json:/app/config/strategies.json:ro            # approvals written by forward.promote on the host file, no rebuild
     ports:
       - "127.0.0.1:8788:8787"
     tmpfs: [/tmp]
