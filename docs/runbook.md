@@ -329,3 +329,14 @@ Owner steps, in order:
 
 Even then, real signals need the Gate 1 run record with the owner's data approval line, and a strategy approved in `config/strategies.json`. If any requirement is missing the process refuses to start and says which one. The kill switch is shared with the demo bot.
 
+### 12.13 Automatic strategy approval after the forward test
+
+Once any variant reaches its 7,800 contracts, two commands (run on the VM inside the demo bot container) evaluate it once and approve it:
+
+```bash
+docker compose --env-file vm.env -f docker-compose.yml -f docker-compose.lowmem.yml exec -T bot python -m derivbot.forward.report --evaluate
+docker compose --env-file vm.env -f docker-compose.yml -f docker-compose.lowmem.yml exec -T bot python -m derivbot.forward.promote
+```
+
+`promote` adds a strategy to `config/strategies.json` only when a recorded, non-void PASS exists for one of its variants (Holm corrected, Wilson bound, positive expectancy, all blocks positive, as registered). It never evaluates, never removes an approval. The real bot reads the file at start, so restart `bot-real` after an approval. This does not replace the other conditions: the signed checklist, the Gate 1 record and the approval file still gate real orders.
+
