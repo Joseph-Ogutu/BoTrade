@@ -97,4 +97,4 @@ def test_admin_api_has_no_route_that_could_touch_trading_mode(env):
     paths = {r.path for r in c.app.routes}
     # /ui (static shell, no data) and /api/summary (read-only, bearer) were added with the dashboard on 2026-11-05.
     # /api/auth-methods, /api/login and /api/logout were added with the password login. Nothing here can change the trading mode, a setting or a credential; any further route must update this list on purpose.
-    assert paths == {"/health", "/status", "/kill", "/release", "/ui", "/api/summary", "/api/auth-methods", "/api/login", "/api/logout", "/api/trades"}
+    assert paths == {"/health", "/status", "/kill", "/release", "/ui", "/api/summary", "/api/auth-methods", "/api/login", "/api/logout", "/api/trades", "/api/release"}

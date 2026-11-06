@@ -148,6 +148,13 @@ async def test_without_demo_credentials_the_service_still_runs_its_safety_parts_
 
 # ---------------------------------------------------------------- forward test wiring (Amendment 5)
 
+class NoAccounts:
+    """Stands in for the dashboard's accounts call, which would otherwise reach the real Deriv API with the test's fake token."""
+
+    def get(self):
+        return {"demo": None, "real": None, "error": "stub in tests"}
+
+
 def forward_root(tmp_path, approved=True):
     import shutil
     from pathlib import Path
@@ -192,7 +199,8 @@ async def test_live_ticks_reach_the_ledger_and_the_summary_shows_counts_only(fre
     async with FakeDeriv(balance=2500.0) as fake:
         transport, port = FakeTransport(), free_port()
         app = appmod.build(settings_for(fresh_db_url), root=root, kv=MemoryStore(), transport=transport,
-                           policy=EndpointPolicy("ws", "127.0.0.1", fake.port), otp_provider=FakeOtp(fake), flag_path=tmp_path / "KILL")
+                           policy=EndpointPolicy("ws", "127.0.0.1", fake.port), otp_provider=FakeOtp(fake), flag_path=tmp_path / "KILL",
+                           accounts_view=NoAccounts())                  # never the real accounts endpoint from a test
         halt, task = await start(app, port)
         for _ in range(200):
             if app.forward.ledger._abs.get("1HZ100V", -1) >= 3 or app.forward.ledger.resets:

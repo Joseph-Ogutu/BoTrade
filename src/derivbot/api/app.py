@@ -38,6 +38,11 @@ class LoginBody(BaseModel):
     password: str = Field(min_length=1, max_length=256)
 
 
+class DashboardReleaseBody(BaseModel):
+    password: str = Field(min_length=1, max_length=256)
+    reason: str = Field(min_length=3, max_length=200)
+
+
 class ReleaseBody(BaseModel):
     reason: str = Field(min_length=3, max_length=200)
 
@@ -275,6 +280,28 @@ def create_app(kill_switch: KillSwitch, admin_token: str | None,
     def kill(body: KillBody = KillBody()) -> dict[str, Any]:
         kill_switch.engage("api", body.reason)
         return {"engaged": True}
+
+    @app.post("/api/release", dependencies=[Depends(auth_write)])
+    def release_from_dashboard(body: DashboardReleaseBody, request: Request) -> dict[str, Any]:
+        """Release the kill switch from the dashboard. Needs a signed-in session (or the token), the CSRF header AND the password typed
+        again: a session left open on a shared screen, or hijacked, cannot restart trading on its own. A wrong password counts toward the
+        same lockout as a wrong login. The release is logged like any other (it fails if it cannot be logged)."""
+        stored = password_hash()
+        if not stored:
+            raise HTTPException(503, "password sign-in is not set up, so a release cannot be confirmed from the dashboard")
+        ip = client_ip(request)
+        wait = limiter.retry_after(ip)
+        if wait:
+            raise HTTPException(429, "too many failed attempts", headers={"Retry-After": str(wait)})
+        if not verify_password(body.password, stored):
+            limiter.failure(ip)
+            raise HTTPException(401, "wrong password")
+        limiter.success(ip)
+        try:
+            kill_switch.release("api", f"dashboard: {body.reason}")
+        except RuntimeError as exc:
+            raise HTTPException(409, str(exc)) from None
+        return {"engaged": kill_switch.is_engaged()}
 
     @app.post("/release", dependencies=[Depends(auth_bearer_only)])
     def release(body: ReleaseBody) -> dict[str, Any]:

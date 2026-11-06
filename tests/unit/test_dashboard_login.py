@@ -176,3 +176,98 @@ def test_the_password_script_writes_into_the_existing_file_so_a_mounted_containe
     assert mod.main() == 0
     assert os.stat(target).st_ino == inode                       # same file, not a replacement
     assert verify_password("a long enough passphrase 1", target.read_text().strip())
+
+
+# ---------------------------------------------------------------- release from the dashboard (password confirmed)
+
+class FailingReleaseLog(MemoryEventLog):
+    def append(self, action, source, reason):
+        if action == "release":
+            raise OSError("log down")
+        super().append(action, source, reason)
+
+
+def engaged(tmp_path, **kw):
+    c, ks, box = make(tmp_path, **kw)
+    ks.engage("api", "test")
+    return c, ks, box
+
+
+def signed_in(c):
+    assert c.post("/api/login", json={"password": PW}).status_code == 200
+
+
+def rel(c, password=PW, reason="checked, safe to continue", headers=HDR):
+    return c.post("/api/release", json={"password": password, "reason": reason}, headers=headers)
+
+
+def test_release_from_the_dashboard_needs_a_signed_in_session(tmp_path):
+    c, ks, _ = engaged(tmp_path)
+    assert rel(c).status_code == 401 and ks.is_engaged()
+
+
+def test_release_from_the_dashboard_needs_the_csrf_header(tmp_path):
+    c, ks, _ = engaged(tmp_path)
+    signed_in(c)
+    assert rel(c, headers={}).status_code == 403 and ks.is_engaged()
+
+
+def test_a_wrong_password_never_releases_and_counts_toward_the_lockout(tmp_path):
+    c, ks, _ = engaged(tmp_path)
+    signed_in(c)
+    for _ in range(10):
+        assert rel(c, password="not the password").status_code == 401
+    assert ks.is_engaged()
+    locked = rel(c)                                                  # even the right password is refused while locked out
+    assert locked.status_code == 429 and int(locked.headers["retry-after"]) > 0 and ks.is_engaged()
+
+
+def test_a_correct_password_releases_and_the_event_is_logged_with_the_reason(tmp_path):
+    ks_log = MemoryEventLog()
+    ks = KillSwitch(MemoryStore(), ks_log, tmp_path / "KILL")
+    app = create_app(ks, TOKEN, lambda: {}, lambda: {}, password_hash=lambda: STORED)
+    c = TestClient(app)
+    ks.engage("api", "test")
+    signed_in(c)
+    r = rel(c, reason="reviewed the audit, safe")
+    assert r.status_code == 200 and r.json() == {"engaged": False} and not ks.is_engaged()
+    action, source, reason = ks_log.events[-1]
+    assert (action, source) == ("release", "api") and reason == "dashboard: reviewed the audit, safe"
+
+
+def test_a_short_reason_or_missing_fields_are_rejected_before_anything_happens(tmp_path):
+    c, ks, _ = engaged(tmp_path)
+    signed_in(c)
+    assert rel(c, reason="ok").status_code == 422 and rel(c, reason="").status_code == 422
+    assert c.post("/api/release", json={"reason": "fine reason"}, headers=HDR).status_code == 422
+    assert ks.is_engaged()
+
+
+def test_a_release_that_cannot_be_logged_does_not_happen(tmp_path):
+    ks = KillSwitch(MemoryStore(), FailingReleaseLog(), tmp_path / "KILL")
+    c = TestClient(create_app(ks, TOKEN, lambda: {}, lambda: {}, password_hash=lambda: STORED))
+    ks.engage("api", "test")
+    signed_in(c)
+    r = rel(c)
+    assert r.status_code == 409 and "not logged" in r.json()["detail"] and ks.is_engaged()
+
+
+def test_without_a_password_set_the_dashboard_cannot_release_even_with_the_token(tmp_path):
+    c, ks, _ = engaged(tmp_path, stored=None)
+    r = c.post("/api/release", json={"password": PW, "reason": "fine reason"}, headers={"Authorization": f"Bearer {TOKEN}"})
+    assert r.status_code == 503 and ks.is_engaged()
+
+
+def test_the_token_alone_is_not_enough_either_the_password_is_still_required(tmp_path):
+    c, ks, _ = engaged(tmp_path)
+    bad = c.post("/api/release", json={"password": "wrong password!", "reason": "fine reason"}, headers={"Authorization": f"Bearer {TOKEN}"})
+    assert bad.status_code == 401 and ks.is_engaged()
+    good = c.post("/api/release", json={"password": PW, "reason": "fine reason"}, headers={"Authorization": f"Bearer {TOKEN}"})
+    assert good.status_code == 200 and not ks.is_engaged()
+
+
+def test_the_old_token_only_release_route_is_still_closed_to_browser_sessions_and_to_the_internet():
+    from pathlib import Path
+
+    cf = (Path(__file__).resolve().parents[2] / "deploy" / "Caddyfile").read_text()
+    assert "@private path /release /release/*" in cf and "/api/release" not in cf        # only the token-only route is blocked at the proxy

@@ -119,7 +119,8 @@ class App:
 
 
 def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transport: Transport | None = None,
-          policy: EndpointPolicy = PROD_POLICY, otp_provider: Any = None, flag_path: Path | None = None) -> App:
+          policy: EndpointPolicy = PROD_POLICY, otp_provider: Any = None, flag_path: Path | None = None,
+          accounts_view: Any = None) -> App:
     notes: list[str] = []
     risk_cfg = load_risk_config(root / "config" / "risk.json")           # raises RiskConfigError naming every unset value
     approvals = load_strategy_approvals(root / "config" / "strategies.json")
@@ -246,8 +247,7 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
                                interval_s=float(os.environ.get("AUDIT_INTERVAL_S", str(6 * 3600))))
 
     app_box: dict[str, App] = {}
-    accounts_view = None
-    if settings.deriv_app_id_demo and settings.deriv_pat_demo:
+    if accounts_view is None and settings.deriv_app_id_demo and settings.deriv_pat_demo:
         from derivbot.api.accounts_view import AccountsView
 
         accounts_view = AccountsView(settings.deriv_app_id_demo, settings.deriv_pat_demo.get_secret_value(), ttl_s=15.0)

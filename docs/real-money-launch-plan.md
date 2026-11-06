@@ -28,7 +28,7 @@ account (`REAL_TRADING_IMPLEMENTED = False`, the endpoint allowlist, demo-only O
 |---|---|
 | Stake per bet | 1.00 USD flat, no scaling after wins or losses |
 | Bets per day | at most 5 |
-| Stop for the day | after 3 losses |
+| Stop for the day | after 2 losses (the owner tightened the demo rule from 3 to 2 on 2026-11-06) |
 | Daily loss limit | 5.00 USD |
 | Total loss limit | the amount funded; the bot halts at 50 percent of it and waits for the owner |
 | Kill switch | tested on demo with the real account's guards in place before the first real bet |

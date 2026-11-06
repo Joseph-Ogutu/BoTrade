@@ -301,13 +301,26 @@ dialog form{display:grid;gap:12px} dialog h1{margin:0;font-size:1.1rem} dialog p
         <article class="card"><h2>Risk rejections today</h2><ul class="list" id="rej"></ul></article>
         <article class="card"><h2>Kill switch events</h2><ul class="list" id="ev"></ul></article>
         <article class="card danger-zone">
-          <p>Stops all new trades immediately. Releasing it is done on the server with <code>scripts/opsctl.sh release</code>, never from this page.</p>
+          <p id="dzText">Stops all new trades immediately. After you engage it, a Release button appears here; releasing asks for your password again.</p>
           <button class="danger" id="killBtn" type="button"><svg class="ic sm"><use href="#i-power"/></svg>Engage kill switch</button>
+          <button class="primary hidden" id="relBtn" type="button"><svg class="ic sm"><use href="#i-power"/></svg>Release kill switch</button>
         </article>
       </div>
     </section>
     <footer>Read only except the kill switch. Real-money trading is locked in this build.</footer>
   </main>
+
+  <dialog id="relDlg" aria-labelledby="rt">
+    <form method="dialog" id="relForm">
+      <h1 id="rt">Release the kill switch?</h1>
+      <p>Trading may resume under the usual risk limits. First check why it was engaged (see Kill switch events and the banner). Type <b>RELEASE</b>, give a reason and enter your password.</p>
+      <input id="relConfirm" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Type RELEASE to confirm" placeholder="RELEASE">
+      <input id="relReason" autocomplete="off" aria-label="Reason for releasing" placeholder="Reason, for example: checked, safe to continue" maxlength="200">
+      <input id="relPw" type="password" autocomplete="current-password" aria-label="Your password" placeholder="Password">
+      <div class="err" id="relErr" role="alert"></div>
+      <div class="row2"><button type="button" id="relCancel">Cancel</button><button class="primary" type="submit" id="relGo">Release</button></div>
+    </form>
+  </dialog>
 
   <dialog id="killDlg" aria-labelledby="kt">
     <form method="dialog" id="killForm">
@@ -419,7 +432,7 @@ function renderLive(d){
   chip($("sKill"),ks.engaged?"bad":"ok",ks.engaged?"ENGAGED":"clear",true);
   var ra=d.reconcile_age_s;chip($("sRecon"),ra===null||ra===undefined?"warn":(ra>120?"warn":"ok"),secs(ra),true);
   var ta=d.tick_age_s;chip($("sTick"),ta===null||ta===undefined?"warn":(ta>10?"warn":"ok"),ta===null||ta===undefined?"no ticks":secs(ta),true);
-  $("killBtn").disabled=!!ks.engaged;
+  $("killBtn").classList.toggle("hidden",!!ks.engaged);$("relBtn").classList.toggle("hidden",!ks.engaged);
   lastOk=Date.now();setLive("ok","live "+new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"}));
 }
 function pollLive(){
@@ -560,6 +573,27 @@ $("killForm").addEventListener("submit",function(ev){
     .then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);dlg.close();tick()})
     .catch(function(){$("killErr").textContent="Could not reach the server. Try again, or use scripts/opsctl.sh kill on the VM."})
     .then(function(){$("killGo").disabled=false});
+});
+
+var rdlg=$("relDlg");
+$("relBtn").addEventListener("click",function(){$("relConfirm").value="";$("relReason").value="";$("relPw").value="";$("relErr").textContent="";if(rdlg.showModal)rdlg.showModal();else rdlg.setAttribute("open","")});
+$("relCancel").addEventListener("click",function(){$("relPw").value="";rdlg.close()});
+$("relForm").addEventListener("submit",function(ev){
+  ev.preventDefault();
+  if($("relConfirm").value.trim().toUpperCase()!=="RELEASE"){$("relErr").textContent="Type RELEASE exactly to confirm.";return}
+  var reason=$("relReason").value.trim();if(reason.length<3){$("relErr").textContent="Give a short reason (at least 3 characters).";return}
+  if(!$("relPw").value){$("relErr").textContent="Enter your password.";return}
+  $("relGo").disabled=true;
+  api("/api/release",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:$("relPw").value,reason:reason})})
+    .then(function(r){
+      if(r.status===401)throw new Error("Wrong password.");
+      if(r.status===429)throw new Error("Too many attempts. Try again later.");
+      if(r.status===503)throw new Error("Password sign-in is not set up, so the release cannot be confirmed here.");
+      if(r.status===409)throw new Error("The release could not be logged, so it did not happen. Try again, or use scripts/opsctl.sh release on the server.");
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      $("relPw").value="";rdlg.close();tick();pollLive();
+    }).catch(function(e){$("relErr").textContent=(e&&e.message)||"Could not reach the server."})
+    .then(function(){$("relGo").disabled=false;$("relPw").value=""});
 });
 
 /* ---------- boot ---------- */

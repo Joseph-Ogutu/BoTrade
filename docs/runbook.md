@@ -273,7 +273,7 @@ Found while bringing the stack up for the first time: the redis service needed `
 
 ### 12.8 The dashboard (private, through an SSH tunnel)
 
-The admin API also serves a dashboard at `/ui`. It is a single page with no external files, designed for phone and laptop. It shows the real account balance (VIEW ONLY, trading locked), the demo balance, today's P&L, win rate, open exposure, recent trades, risk rejections, system health and kill switch events. The only action is "Engage kill switch" (type KILL to confirm). Releasing the kill switch is never on the page: use `scripts/opsctl.sh release "reason"` on the VM.
+The admin API also serves a dashboard at `/ui`. It is a single page with no external files, designed for phone and laptop. It shows the real account balance (VIEW ONLY, trading locked), the demo balance, today's P&L, win rate, open exposure, recent trades, risk rejections, system health and kill switch events. The actions are "Engage kill switch" (type KILL to confirm) and, once it is engaged, "Release kill switch". Release asks for RELEASE typed, a reason, and YOUR PASSWORD AGAIN, and it is refused if it cannot be logged. Check why it was engaged (the banner and the Kill switch events) before you release. The token-only `scripts/opsctl.sh release "reason"` on the VM still exists.
 
 Access, with nothing opened to the internet: the bot publishes port 8787 on the VM's loopback only.
 
