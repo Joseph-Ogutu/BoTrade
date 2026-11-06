@@ -8,6 +8,7 @@ import pytest
 from derivbot.execution.executor import ConnInfo
 from derivbot.execution.snapshot import fetch_snapshot
 from derivbot.execution.state_machine import State
+from derivbot.risk.engine import RiskEngine as _RE
 from tests.fakes.fake_deriv import Fault
 
 pytestmark = pytest.mark.postgres
@@ -369,8 +370,6 @@ async def test_an_unexpected_exception_engages_the_kill_switch_and_alerts(env, m
 
 
 # ---------------------------------------------------------------- owner day rules through the real executor (2026-11-06)
-
-from derivbot.risk.engine import RiskEngine as _RE
 
 
 def _owner_day(env, cap=5, stop=3):
