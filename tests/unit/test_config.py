@@ -50,10 +50,10 @@ def test_a_risk_file_with_every_owner_value_unset_fails_loudly_and_lists_them_al
 
 def test_the_committed_risk_file_holds_the_values_the_owner_approved():
     """Approved by the owner in chat (demo account). 2026-11-05: first values. Later that day the owner asked for a bigger demo stake
-    for the day-long soak, so stake cap 25, then 100 (1 percent of the 10,000 demo balance, the most the 0.01 risk fraction allows), then 200 with the risk fraction raised to 2 percent (2 percent of the 10,000 demo balance), daily loss 4000 and 25 consecutive losses (a 3-loss lock cannot clear without a win and
+    for the day-long soak, so stake cap 25, then 100 (1 percent of the 10,000 demo balance, the most the 0.01 risk fraction allows), then 200 with the risk fraction raised to 2 percent, then on 2026-11-06 the owner asked for each bet to be 15 percent of the balance available, read fresh before the bet (fraction 0.15, the absolute cap 5000 no longer binds), with daily loss 4000 and 25 consecutive losses (a 3-loss lock cannot clear without a win and
     would stall the soak). These are DEMO soak values, to be reviewed before any real use. Changing a number is a deliberate edit."""
     cfg = load_risk_config(ROOT / "config" / "risk.json")
-    assert (cfg.risk_per_trade_pct, cfg.max_stake_abs, cfg.max_daily_loss_abs) == (Decimal("0.02"), Decimal("200.00"), Decimal("4000.00"))
+    assert (cfg.risk_per_trade_pct, cfg.max_stake_abs, cfg.max_daily_loss_abs) == (Decimal("0.15"), Decimal("5000.00"), Decimal("4000.00"))
     assert (cfg.max_consecutive_losses, cfg.max_open_positions, cfg.max_trades_per_hour) == (25, 1, 20)
     # 2026-11-06: the owner's option B rule for live demo bets: at most 5 a day, stop for the day at 3 losses
     assert (cfg.max_trades_per_day, cfg.max_losses_per_day) == (5, 3)

@@ -80,6 +80,7 @@ class ExecutorDeps:
     request_timeout: float = 10.0
     buy_unknown_window_s: float = 60.0        # how long after BUY_SENT "not found" may be believed
     clock_skew_tolerance_s: int = 10          # UNVERIFIED: how far apart our clock and Deriv's purchase_time may be
+    fresh_balance: bool = False               # True: read the balance from the exchange right before sizing every stake
 
 
 def _cents_down(x: Decimal) -> Decimal:
@@ -162,10 +163,26 @@ class Executor:
             trades_today=s["trades_today"], losses_today=s["losses_today"], win_streak_today=s["win_streak"],
         )
 
+    async def _balance_now(self, info: ConnInfo) -> Decimal | None:
+        """The balance to size this stake from. With fresh_balance on it is asked of the exchange NOW (no subscription, no cache), and
+        anything short of a clean answer is None, which the stake rule turns into a recorded refusal: no bet on a balance we could
+        not read. With it off (tests of other behaviour) the connection's last known balance is used."""
+        if not self.d.fresh_balance:
+            return info.balance
+        session = self.d.get_session()
+        if session is None or not session.connected:
+            return None
+        try:
+            msg = m.parse_message(await session.request(m.req_balance(session.next_req_id(), subscribe=False), self.d.request_timeout))
+        except Exception as exc:  # noqa: BLE001 - a lost connection, a timeout or an error reply all mean: do not size a stake
+            log.warning("fresh balance read failed: %s", type(exc).__name__)
+            return None
+        return msg.balance.balance if isinstance(msg, m.BalanceMsg) else None
+
     async def _submit(self, req: IntentRequest, duration: int, unit: str, wait: bool, settle_timeout: float) -> ExecutionResult:
         cfg = self.d.risk.cfg
         info = self.d.get_conn_info()
-        balance, api_min = info.balance, self.d.api_min_stake(req.symbol)
+        balance, api_min = await self._balance_now(info), self.d.api_min_stake(req.symbol)
         pre = compute_stake(balance, cfg.risk_per_trade_pct, cfg.max_stake_abs, api_min, cfg.min_stake_abs)
         try:
             intent_id = await self._db(repo.create_intent, idempotency_key=req.idempotency_key, mode=req.mode,

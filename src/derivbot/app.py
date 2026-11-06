@@ -182,7 +182,7 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
         get_session=lambda: sup_box["s"].session if sup_box["s"] else None, get_conn_info=verifier.get_info,
         last_tick_age=lambda: fresh.age(SYMBOLS[0]), last_reconcile_age=lambda: reconciler_box["r"].age_s(),
         api_min_stake=min_stake.get,         # from proposal validation_params on every connect; unknown means no trade
-        account_id=settings.deriv_account_id_demo or "", on_alert=notifier.submit)
+        account_id=settings.deriv_account_id_demo or "", on_alert=notifier.submit, fresh_balance=True)
     executor = Executor(deps)
     forward = None
     if forward_approval is not None:

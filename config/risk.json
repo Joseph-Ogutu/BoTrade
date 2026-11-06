@@ -1,6 +1,6 @@
 {
-  "risk_per_trade_pct": "0.02",
-  "max_stake_abs": "200.00",
+  "risk_per_trade_pct": "0.15",
+  "max_stake_abs": "5000.00",
   "min_stake_abs": null,
   "max_daily_loss_abs": "4000.00",
   "max_daily_loss_pct_of_start_balance": null,

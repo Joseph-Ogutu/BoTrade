@@ -430,3 +430,56 @@ async def test_three_wins_in_a_row_stop_trading_for_the_rest_of_the_day(env):
     assert fourth.state.value == "RISK_REJECTED" and env.fake.buys_received == 3
     failed = env.q("SELECT rule_results FROM risk_decisions ORDER BY id DESC LIMIT 1")[0][0]
     assert [x["name"] for x in failed if not x["passed"]] == ["consecutive_wins_today_within_limit"]
+
+
+# ---------------------------------------------------------------- stake sized from the balance read fresh from the exchange (2026-11-06)
+
+def _fifteen_percent(env, fresh=True):
+    cfg = env.deps.risk.cfg.model_copy(update={"risk_per_trade_pct": D("0.15"), "max_stake_abs": D("5000.00"), "min_stake_abs": None})
+    env.deps.risk = _RE(cfg, env.deps.risk.approvals)
+    env.executor.d.risk = env.deps.risk
+    env.executor.d.fresh_balance = fresh
+
+
+async def test_the_stake_is_fifteen_percent_of_the_balance_read_from_the_exchange_just_now_not_the_cached_one(env):
+    _fifteen_percent(env)
+    env.fake.balance = 2000.0                                          # the connection's cached balance is 1000; the truth is 2000
+    res = await env.executor.submit(env.intent("f1"))
+    assert res.state.value == "SETTLED"
+    assert env.q("SELECT stake FROM order_intents")[0][0] == D("300.00")
+    assert env.fake.proposals and any(float(p["amount"]) == 300.0 for p in env.fake.proposals.values())      # what was actually asked for
+
+
+async def test_the_fifteen_percent_stake_is_rounded_down_to_the_cent_and_follows_a_changing_balance(env):
+    _fifteen_percent(env)
+    env.fake.balance = 1234.57
+    assert (await env.executor.submit(env.intent("f2"))).state.value == "SETTLED"
+    stake1 = env.q("SELECT stake FROM order_intents ORDER BY created_at LIMIT 1")[0][0]
+    assert stake1 == D("185.18")                                       # 15 percent of 1234.57 is 185.1855: down, never up
+    bal_after = D(str(env.fake.balance))                              # the balance moved with the settled contract
+    await env.executor.submit(env.intent("f3", contract_type="PUT"))
+    stake2 = env.q("SELECT stake FROM order_intents ORDER BY created_at DESC LIMIT 1")[0][0]
+    assert stake2 == (bal_after * D("0.15")).quantize(D("0.01"), rounding="ROUND_DOWN") and stake2 != stake1       # sized from the NEW balance
+
+
+async def test_when_the_balance_cannot_be_read_no_bet_is_placed_and_the_refusal_is_recorded(env):
+    _fifteen_percent(env)
+    env.fake.inject(Fault("balance", "error", code="FakeError", message="no balance"))             # UNVERIFIED-ERR: invented
+    res = await env.executor.submit(env.intent("f4"))
+    assert res.state.value == "RISK_REJECTED" and env.fake.buys_received == 0
+    failed = env.q("SELECT rule_results FROM risk_decisions ORDER BY id DESC LIMIT 1")[0][0]
+    assert [x["name"] for x in failed if not x["passed"]] == ["stake_within_bounds"]
+
+
+async def test_a_balance_read_that_times_out_also_means_no_bet(env):
+    _fifteen_percent(env)
+    env.fake.inject(Fault("balance", "drop_before"))                                                 # the request is swallowed: a timeout
+    res = await env.executor.submit(env.intent("f5"))
+    assert res.state.value == "RISK_REJECTED" and env.fake.buys_received == 0
+
+
+async def test_with_the_fresh_read_off_the_cached_balance_is_used_as_before(env):
+    _fifteen_percent(env, fresh=False)
+    env.fake.balance = 2000.0
+    await env.executor.submit(env.intent("f6"))
+    assert env.q("SELECT stake FROM order_intents")[0][0] == D("150.00")                               # 15 percent of the cached 1000
