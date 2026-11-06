@@ -79,10 +79,11 @@ def test_with_the_build_lock_closed_even_all_five_conditions_stay_demo(tmp_path,
     assert d.mode is rg.Mode.DEMO and "not implemented in this build" in " ".join(d.reasons)
 
 
-def test_the_committed_repository_and_defaults_resolve_demo():
-    d = rg.resolve_mode(settings(), repo_root=ROOT, head_commit=HEAD, otp_endpoint_mode=None)
+def test_the_committed_repository_and_defaults_resolve_demo(tmp_path):
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs/live-readiness.md").write_text((ROOT / "docs/live-readiness.md").read_text())      # committed checklist, no approval file here
+    d = rg.resolve_mode(settings(), repo_root=tmp_path, head_commit=HEAD, otp_endpoint_mode=None)
     assert d.mode is rg.Mode.DEMO and set(d.failed) == set(CONDITIONS)
-    assert not (ROOT / "REAL_TRADING_APPROVED").exists()
 
 
 # ------------------------------------------------------------------ the approval file

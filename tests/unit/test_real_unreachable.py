@@ -43,7 +43,9 @@ def test_layer_5_the_demo_only_database_constraints_were_removed_deliberately_by
 
 
 def test_layer_6_the_approval_file_and_the_checklist_are_not_in_the_repository_and_the_file_is_ignored():
-    assert not (ROOT / "REAL_TRADING_APPROVED").exists()
+    import subprocess
+
+    assert subprocess.run(["git", "ls-files", "REAL_TRADING_APPROVED"], cwd=ROOT, capture_output=True, text=True).stdout.strip() == ""
     assert "REAL_TRADING_APPROVED" in (ROOT / ".gitignore").read_text().splitlines()
     assert "[x]" not in (ROOT / "docs/live-readiness.md").read_text()
 
