@@ -57,7 +57,7 @@ async def test_happy_path_ends_settled_with_a_full_audit_trail(env):
     audit = {x[0] for x in env.q("SELECT event_type FROM audit_events WHERE ref_id = :i", i=r.intent_id)}
     assert {"RISK", "RISK_PROPOSAL", "BUY_SENT", "BUY_CONFIRMED", "SETTLED"} <= audit
     rd = env.q("SELECT approved, jsonb_array_length(rule_results) FROM risk_decisions WHERE intent_id = :i", i=r.intent_id)[0]
-    assert tuple(rd) == (True, 11)
+    assert tuple(rd) == (True, 13)
     check_invariants(env)
 
 
@@ -366,3 +366,55 @@ async def test_an_unexpected_exception_engages_the_kill_switch_and_alerts(env, m
     assert env.kill_switch.is_engaged() and r.state is None and "error" in r.reason
     assert any(lvl == "critical" for lvl, _ in env.alerts)
     assert len(env.fake.buy_messages) == 1                # the buy was sent once; the contract exists and will be reconciled
+
+
+# ---------------------------------------------------------------- owner day rules through the real executor (2026-11-06)
+
+from derivbot.risk.engine import RiskEngine as _RE
+
+
+def _owner_day(env, cap=5, stop=3):
+    cfg = env.deps.risk.cfg.model_copy(update={"max_trades_per_day": cap, "max_losses_per_day": stop, "max_trades_per_hour": 100,
+                                               "recent_duplicate_window_s": 1})
+    env.deps.risk = _RE(cfg, env.deps.risk.approvals)
+    env.executor.d.risk = env.deps.risk
+
+
+async def test_the_sixth_bet_of_the_day_is_refused_and_nothing_is_bought(env):
+    _owner_day(env, cap=5, stop=99)
+    kinds = [("1HZ100V", "CALL"), ("1HZ100V", "PUT"), ("R_100", "CALL"), ("R_100", "PUT"), ("1HZ100V", "DIGITEVEN")]
+    for k, (sym, typ) in enumerate(kinds):
+        res = await env.executor.submit(env.intent(f"d{k}", symbol=sym, contract_type=typ))
+        assert res.state.value == "SETTLED", res
+    sixth = await env.executor.submit(env.intent("d5", symbol="R_100", contract_type="DIGITEVEN"))
+    assert sixth.state.value == "RISK_REJECTED" and env.fake.buys_received == 5
+    failed = env.q("SELECT rule_results FROM risk_decisions ORDER BY id DESC LIMIT 1")[0][0]
+    assert [x["name"] for x in failed if not x["passed"]] == ["trades_per_day_within_limit"]
+
+
+async def test_three_losses_in_the_day_stop_trading_even_with_bets_left(env):
+    _owner_day(env, cap=5, stop=3)
+    with env.engine.begin() as c:                                        # three losses already settled today
+        from sqlalchemy import text as _t
+        for k in range(3):
+            iid = f"00000000-0000-0000-0000-00000000000{k}"
+            c.execute(_t("INSERT INTO order_intents (id, idempotency_key, mode, account_id, symbol, contract_type, stake, state) "
+                         "VALUES (:i, :k, 'demo', 'ACC', 'S', 'CALL', 1, 'SETTLED')"), {"i": iid, "k": f"seed{k}"})
+            c.execute(_t("INSERT INTO orders (id, intent_id, state, profit, settled_at, mode, account_id) "
+                         "VALUES (gen_random_uuid(), :i, 'SETTLED', -1, now(), 'demo', 'ACC')"), {"i": iid})
+    res = await env.executor.submit(env.intent("after-losses", symbol="R_100", contract_type="PUT"))
+    assert res.state.value == "RISK_REJECTED" and env.fake.buys_received == 0
+    failed = env.q("SELECT rule_results FROM risk_decisions ORDER BY id DESC LIMIT 1")[0][0]
+    assert "losses_per_day_within_limit" in [x["name"] for x in failed if not x["passed"]]
+
+
+async def test_the_day_counters_reset_at_the_daily_boundary(env):
+    import datetime as dt
+    _owner_day(env, cap=1, stop=99)
+    base = dt.datetime.now(dt.UTC).replace(hour=12, minute=0, second=0, microsecond=0)
+    env.executor.d.clock = lambda: base
+    assert (await env.executor.submit(env.intent("n1", symbol="R_100", contract_type="CALL"))).state.value == "SETTLED"
+    assert (await env.executor.submit(env.intent("n2", symbol="R_100", contract_type="PUT"))).state.value == "RISK_REJECTED"
+    env.executor.d.clock = lambda: base + dt.timedelta(days=1)         # the next UTC day: the cap is fresh
+    again = await env.executor.submit(env.intent("n3", symbol="1HZ100V", contract_type="PUT"))
+    assert again.state.value == "SETTLED", again

@@ -12,5 +12,7 @@
   "min_net_payout_ratio": "0.80",
   "reconcile_max_age_s": 120,
   "recent_duplicate_window_s": 30,
-  "daily_reset_utc_hour": 0
+  "daily_reset_utc_hour": 0,
+  "max_trades_per_day": 5,
+  "max_losses_per_day": 3
 }

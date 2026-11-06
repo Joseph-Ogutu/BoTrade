@@ -104,3 +104,20 @@ def test_balances(conn):
     assert state.latest_balance(conn, "ACC-B") == D("1010")
     only_after = NOW - dt.timedelta(days=30)
     assert state.start_of_day_balance(conn, only_after) == D("900")         # nothing before: first one after
+
+
+def test_trades_and_losses_since_the_risk_day_began(conn):
+    conn.execute(text("DELETE FROM orders"))
+    conn.execute(text("DELETE FROM order_events"))
+    i = intent(conn)
+    day = NOW.replace(hour=0, minute=0, second=0, microsecond=0)
+    for when, to in ((day - dt.timedelta(minutes=1), "BUY_SENT"), (day, "BUY_SENT"), (day + dt.timedelta(hours=3), "BUY_SENT"),
+                     (day + dt.timedelta(hours=4), "RISK_APPROVED")):
+        conn.execute(text("INSERT INTO order_events (ts, intent_id, from_state, to_state, event) VALUES (:t, :i, 'X', :to, 'E')"),
+                     {"t": when, "i": i, "to": to})
+    assert state.trades_since(conn, day) == 2                                   # the buy before midnight and the non-buy do not count
+    for p, when in ((D("-1"), day - dt.timedelta(minutes=5)), (D("-1"), day + dt.timedelta(hours=1)), (D("0.9"), day + dt.timedelta(hours=2)),
+                    (D("-2"), day + dt.timedelta(hours=5))):
+        order(conn, "SETTLED", p, when)
+    order(conn, "OPEN", D("-9"), day + dt.timedelta(hours=6))                   # not settled: ignored
+    assert state.losses_since(conn, day) == 2                                   # yesterday's loss, the win and the open one do not count

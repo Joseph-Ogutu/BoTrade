@@ -55,6 +55,8 @@ def test_the_committed_risk_file_holds_the_values_the_owner_approved():
     cfg = load_risk_config(ROOT / "config" / "risk.json")
     assert (cfg.risk_per_trade_pct, cfg.max_stake_abs, cfg.max_daily_loss_abs) == (Decimal("0.02"), Decimal("200.00"), Decimal("4000.00"))
     assert (cfg.max_consecutive_losses, cfg.max_open_positions, cfg.max_trades_per_hour) == (25, 1, 20)
+    # 2026-11-06: the owner's option B rule for live demo bets: at most 5 a day, stop for the day at 3 losses
+    assert (cfg.max_trades_per_day, cfg.max_losses_per_day) == (5, 3)
     assert cfg.max_proposal_price_slippage == Decimal("0.02") and cfg.stale_data_max_age_s == 10
     assert cfg.min_net_payout_ratio == Decimal("0.80") and cfg.reconcile_max_age_s == 120
     assert cfg.recent_duplicate_window_s == 30 and cfg.daily_reset_utc_hour == 0
@@ -249,3 +251,13 @@ def test_a_variable_that_only_ends_in_file_is_a_path_not_a_secret_reference(tmp_
     base = {"DATABASE_URL": "postgresql+psycopg://u:p@h/d", "REDIS_URL": "redis://r/0"}
     # KILL_SWITCH_FILE would have been read as "supply KILL_SWITCH from this file" and failed on a missing path
     assert load_settings({**base, "KILL_SWITCH_FILE": str(tmp_path / "does-not-exist")}).trading_mode == "demo"
+
+
+def test_the_optional_day_limits_default_to_none_and_must_be_positive_integers(tmp_path):
+    cfg = load_risk_config(write(tmp_path, VALID))
+    assert cfg.max_trades_per_day is None and cfg.max_losses_per_day is None
+    cfg = load_risk_config(write(tmp_path, {**VALID, "max_trades_per_day": 5, "max_losses_per_day": 3}))
+    assert (cfg.max_trades_per_day, cfg.max_losses_per_day) == (5, 3)
+    for bad in (0, -1, 2.5, "x"):
+        with pytest.raises(RiskConfigError):
+            load_risk_config(write(tmp_path, {**VALID, "max_trades_per_day": bad}))

@@ -54,7 +54,7 @@ def test_approved_decision_is_recorded_with_all_rules_snapshot_and_config_versio
     row = conn.execute(text("SELECT approved, rule_results, state_snapshot, config_version_id FROM risk_decisions "
                             "WHERE intent_id = :i"), {"i": i}).one()
     assert row.approved is True and row.config_version_id == cv
-    assert len(row.rule_results) == 11 and all(r["passed"] for r in row.rule_results)
+    assert len(row.rule_results) == 13 and all(r["passed"] for r in row.rule_results)
     assert row.state_snapshot["balance"] == "1000"
     audit = conn.execute(text("SELECT payload FROM audit_events WHERE ref_id = :i AND event_type = 'RISK'"), {"i": i}).scalar_one()
     assert audit["approved"] is True and audit["stake"] == "5.00"

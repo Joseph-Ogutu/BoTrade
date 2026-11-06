@@ -102,6 +102,20 @@ def trade_rate_within_limit(trades_last_hour: int, max_per_hour: int) -> RuleRes
     return RuleResult("trade_rate_within_limit", trades_last_hour < max_per_hour, str(trades_last_hour), f"< {max_per_hour}")
 
 
+def trades_per_day_within_limit(trades_today: int, max_per_day: int | None) -> RuleResult:
+    """Owner rule: at most N bets per risk day. None means the owner set no daily cap."""
+    if max_per_day is None:
+        return RuleResult("trades_per_day_within_limit", True, str(trades_today), "no daily cap set")
+    return RuleResult("trades_per_day_within_limit", trades_today < max_per_day, str(trades_today), f"< {max_per_day}")
+
+
+def losses_per_day_within_limit(losses_today: int, max_losses_per_day: int | None) -> RuleResult:
+    """Owner rule: stop for the rest of the risk day once N bets have lost. None means no daily stop is set."""
+    if max_losses_per_day is None:
+        return RuleResult("losses_per_day_within_limit", True, str(losses_today), "no daily stop set")
+    return RuleResult("losses_per_day_within_limit", losses_today < max_losses_per_day, str(losses_today), f"< {max_losses_per_day}")
+
+
 # 6
 def stake_within_bounds(result: StakeResult) -> RuleResult:
     observed = f"{_s(result.stake)} ({result.reason})"

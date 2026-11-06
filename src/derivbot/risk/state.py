@@ -53,6 +53,17 @@ def trades_in_last_hour(conn: Connection, now: dt.datetime) -> int:
                             {"t": now - dt.timedelta(hours=1)}).scalar_one())
 
 
+def trades_since(conn: Connection, since: dt.datetime) -> int:
+    """Buys sent since the risk day began (a buy sent is a bet, even if its reply was lost)."""
+    return int(conn.execute(text("SELECT count(*) FROM order_events WHERE to_state = 'BUY_SENT' AND ts >= :s"), {"s": since}).scalar_one())
+
+
+def losses_since(conn: Connection, since: dt.datetime) -> int:
+    """Settled bets that lost (strictly negative profit) since the risk day began."""
+    return int(conn.execute(text("SELECT count(*) FROM orders WHERE state IN ('SETTLED', 'SOLD') AND profit < 0 AND settled_at >= :s"),
+                            {"s": since}).scalar_one())
+
+
 def identical_recent_or_in_flight(conn: Connection, intent_id: str, symbol: str, contract_type: str, account_id: str,
                                   window_s: int, now: dt.datetime) -> bool:
     row = conn.execute(text(

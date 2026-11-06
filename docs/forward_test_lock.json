@@ -1,0 +1,108 @@
+{
+  "adaptive_selector": {
+    "duration_ticks": 5,
+    "id": "adaptive_selector",
+    "params": {
+      "candidates": [
+        "ema_trend",
+        "rsi_bollinger",
+        "vol_breakout"
+      ],
+      "eval_window": 60,
+      "min_decisions": 8,
+      "min_hit_rate": 0.55,
+      "step": 3
+    },
+    "version": "1",
+    "warmup_ticks": 166
+  },
+  "ema_trend": {
+    "duration_ticks": 5,
+    "id": "ema_trend",
+    "params": {
+      "duration_ticks": 5,
+      "fast": 9,
+      "lookback": 105,
+      "slow": 21
+    },
+    "version": "1",
+    "warmup_ticks": 106
+  },
+  "regime_ema_trend": {
+    "duration_ticks": 5,
+    "id": "regime_trending(ema_trend)",
+    "params": {
+      "allow": "trending",
+      "inner": {
+        "duration_ticks": 5,
+        "fast": 9,
+        "lookback": 105,
+        "slow": 21
+      },
+      "n": 30,
+      "threshold": 0.3
+    },
+    "version": "1",
+    "warmup_ticks": 106
+  },
+  "regime_rsi_bollinger": {
+    "duration_ticks": 5,
+    "id": "regime_ranging(rsi_bollinger)",
+    "params": {
+      "allow": "ranging",
+      "inner": {
+        "bb_k": 2.0,
+        "bb_period": 20,
+        "duration_ticks": 5,
+        "rsi_high": 70.0,
+        "rsi_low": 30.0,
+        "rsi_period": 14
+      },
+      "n": 30,
+      "threshold": 0.3
+    },
+    "version": "1",
+    "warmup_ticks": 31
+  },
+  "regime_vol_breakout": {
+    "duration_ticks": 5,
+    "id": "regime_trending(vol_breakout)",
+    "params": {
+      "allow": "trending",
+      "inner": {
+        "duration_ticks": 5,
+        "k": 2.0,
+        "lookback": 20
+      },
+      "n": 30,
+      "threshold": 0.3
+    },
+    "version": "1",
+    "warmup_ticks": 31
+  },
+  "rsi_bollinger": {
+    "duration_ticks": 5,
+    "id": "rsi_bollinger",
+    "params": {
+      "bb_k": 2.0,
+      "bb_period": 20,
+      "duration_ticks": 5,
+      "rsi_high": 70.0,
+      "rsi_low": 30.0,
+      "rsi_period": 14
+    },
+    "version": "1",
+    "warmup_ticks": 21
+  },
+  "vol_breakout": {
+    "duration_ticks": 5,
+    "id": "vol_breakout",
+    "params": {
+      "duration_ticks": 5,
+      "k": 2.0,
+      "lookback": 20
+    },
+    "version": "1",
+    "warmup_ticks": 22
+  }
+}

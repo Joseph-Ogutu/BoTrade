@@ -98,3 +98,17 @@ def test_strategy_rule():
 def test_rule_result_serialises():
     d = r.kill_switch_clear(True).as_dict()
     assert d == {"name": "kill_switch_clear", "passed": False, "observed": "engaged", "limit": "clear", "detail": ""}
+
+
+def test_daily_trade_cap_every_branch():
+    assert r.trades_per_day_within_limit(4, 5).passed and not r.trades_per_day_within_limit(5, 5).passed
+    assert not r.trades_per_day_within_limit(9, 5).passed
+    none = r.trades_per_day_within_limit(100, None)
+    assert none.passed and none.limit == "no daily cap set"
+
+
+def test_daily_loss_count_stop_every_branch():
+    assert r.losses_per_day_within_limit(2, 3).passed and not r.losses_per_day_within_limit(3, 3).passed
+    assert not r.losses_per_day_within_limit(7, 3).passed
+    none = r.losses_per_day_within_limit(100, None)
+    assert none.passed and none.limit == "no daily stop set"

@@ -46,6 +46,8 @@ class RiskContext:
     trades_last_hour: int
     idempotency_key_used: bool
     identical_recent_or_in_flight: bool
+    trades_today: int = 0
+    losses_today: int = 0
 
 
 @dataclass(frozen=True)
@@ -94,6 +96,8 @@ class RiskEngine:
                                           c.max_daily_loss_pct_of_start_balance),
             rules.consecutive_losses_within_limit(ctx.consecutive_losses, c.max_consecutive_losses),
             rules.trade_rate_within_limit(ctx.trades_last_hour, c.max_trades_per_hour),
+            rules.trades_per_day_within_limit(ctx.trades_today, c.max_trades_per_day),
+            rules.losses_per_day_within_limit(ctx.losses_today, c.max_losses_per_day),
             rules.stake_within_bounds(stake),
             rules.duplicate_protection(ctx.idempotency_key_used, ctx.identical_recent_or_in_flight),
             rules.strategy_approved(self.approvals.is_approved(i.strategy_id, i.strategy_version), i.strategy_id, i.strategy_version),

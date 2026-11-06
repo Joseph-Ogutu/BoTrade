@@ -25,7 +25,7 @@ def ctx(**kw):
 def test_a_clean_context_is_approved_with_a_stake():
     d = ENGINE.evaluate(ctx())
     assert d.approved and d.stake == D("5.00") and d.failed == []
-    assert len(d.results) == 11
+    assert len(d.results) == 13
 
 
 def test_every_rule_is_recorded_even_when_several_fail():
@@ -33,7 +33,7 @@ def test_every_rule_is_recorded_even_when_several_fail():
     assert not d.approved and d.stake is None
     assert set(d.failed) == {"kill_switch_clear", "market_data_fresh", "open_positions_within_limit",
                              "consecutive_losses_within_limit"}
-    assert len(d.rule_results_json()) == 11
+    assert len(d.rule_results_json()) == 13
 
 
 @pytest.mark.parametrize("override,failing", [
@@ -85,3 +85,19 @@ def test_proposal_check_rule_8():
     assert not bad_price
     bad_payout, res = ENGINE.check_proposal(D("5.00"), D("5.00"), D("5.45"))
     assert not bad_payout and not res[1].passed
+
+
+OWNER_DAY = parse_risk_config({**VALID, "max_trades_per_day": 5, "max_losses_per_day": 3})
+
+
+def test_the_owner_day_rules_are_off_unless_set_and_on_when_set():
+    assert ENGINE.evaluate(ctx(trades_today=99, losses_today=99)).approved                       # VALID sets neither: no cap, no stop
+    eng = RiskEngine(OWNER_DAY, APPROVALS)
+    assert eng.evaluate(ctx(trades_today=4, losses_today=2)).approved
+    assert eng.evaluate(ctx(trades_today=5)).failed == ["trades_per_day_within_limit"]
+    assert eng.evaluate(ctx(losses_today=3)).failed == ["losses_per_day_within_limit"]
+
+
+def test_both_day_rules_are_reported_together_when_both_trip():
+    d = RiskEngine(OWNER_DAY, APPROVALS).evaluate(ctx(trades_today=5, losses_today=3))
+    assert sorted(d.failed) == ["losses_per_day_within_limit", "trades_per_day_within_limit"] and d.stake is None

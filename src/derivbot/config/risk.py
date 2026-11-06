@@ -36,6 +36,8 @@ _FIELDS: dict[str, tuple[str, bool]] = {
     "max_consecutive_losses": ("pos_int", True),
     "max_open_positions": ("pos_int", True),
     "max_trades_per_hour": ("pos_int", True),
+    "max_trades_per_day": ("pos_int", False),        # optional: buys sent since the daily reset; unset means no daily cap
+    "max_losses_per_day": ("pos_int", False),        # optional: settled losses since the daily reset; unset means no daily stop
     "max_proposal_price_slippage": ("nonneg_dec", True),
     "stale_data_max_age_s": ("pos_int", True),
     "min_net_payout_ratio": ("pos_dec", True),
@@ -56,6 +58,8 @@ class RiskConfig(BaseModel):
     max_consecutive_losses: int
     max_open_positions: int
     max_trades_per_hour: int
+    max_trades_per_day: int | None = None
+    max_losses_per_day: int | None = None
     max_proposal_price_slippage: Decimal
     stale_data_max_age_s: int
     min_net_payout_ratio: Decimal

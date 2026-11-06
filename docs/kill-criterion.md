@@ -409,3 +409,10 @@ Real trading stays locked. No LLM is in the trading loop. No martingale. Amendme
   }
 }
 ```
+
+### A5.9 Addendum, made on 2026-11-06 before the forward ledger processed any tick
+
+1. The owner instructed in chat on 2026-11-06 that live demo bets follow a daily rule: at most 5 bets in a day, and no further bet that day once 3 have lost. This is implemented as two risk engine rules, max_trades_per_day = 5 and max_losses_per_day = 3 (config/risk.json), counted from the daily reset at 00:00 UTC. They apply to live demo ORDERS only. They do not touch the ledger: shadow contracts are not capped, which is why the ledger can reach N_EVAL while only 5 live bets are placed a day.
+2. To spread at most 5 live bets over the day, the global cooldown of A5.6 is 3,600 seconds instead of 180 (deployment setting FORWARD_COOLDOWN_S). Still the first eligible signal after the cooldown, no ranking, no preference. A5.6 otherwise stands.
+3. Implementation note on A5.4: after any gap in the tick stream, disconnect or restart, the in-memory history is cleared and decisions wait for each strategy's warm-up to finish again, so no decision is made on a window that spans a hole. This creates and removes no contract after its outcome is known. Contracts open at a clean shutdown are counted as discarded with reason restart; a crash loses them without a count, and the report states the number of resets.
+4. The owner asked that the bot bet only "once it knows everything". No strategy knows anything about the next tick of these indices. The honest approximation would be a confluence filter for live bets (bet only when several strategies agree). It is NOT part of this amendment and would be registered separately before use.
