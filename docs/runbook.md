@@ -342,3 +342,8 @@ docker compose --env-file vm.env -f docker-compose.yml -f docker-compose.lowmem.
 
 Installed on the VM on 2026-11-06 as a crontab entry of the `deploy` user (no sudo needed): `10 0 * * * /opt/derivbot/scripts/forward_daily.sh >> /home/deploy/forward_daily.log 2>&1`. It runs the two commands above daily at 00:10 UTC, using a one-off container so the host file `config/strategies.json` is updated, and restarts `bot-real` if it is running and the approvals changed. `bot-real` mounts that host file, so an approval needs no rebuild. The systemd units in `deploy/derivbot-forward.*` are the alternative if you prefer a timer (needs sudo).
 
+### 12.14 Owner shortcuts (2026-11-06)
+
+- Real credentials and the approval file in one step, typed by you on the VM (the token is hidden and never leaves that terminal): `ssh -t -i ~/.ssh/<key> deploy@<host> 'cd /opt/derivbot && scripts/real_setup.sh'`. It writes `secrets/deriv_pat_real`, the real ids in `vm.env`, and `REAL_TRADING_APPROVED` for the commit baked into the deployed image, then prints the start command. It starts nothing. Re-run it after any redeploy.
+- Off-host backups without a cloud account: run `scripts/pull_backups.sh` on your own computer. It copies the VM's database dumps to `~/Backups/derivbot` and verifies every checksum there. Run it daily (a cron entry on your computer is yours to add: `40 3 * * * /path/to/scripts/pull_backups.sh`). Restore drill on the VM is still to do (section 8).
+
