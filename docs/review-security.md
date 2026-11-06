@@ -86,3 +86,8 @@ Defence layers (all must hold independently): build lock `REAL_TRADING_IMPLEMENT
 ## Deliverable
 
 A written report: findings ranked by severity with a reproduction for each, a list of what you could not assess, the commit reviewed (`git rev-parse HEAD`), and a clear statement of whether you consider the demo-only guarantee sound. Do not modify code during the review.
+
+
+## Addendum 2026-11-06: real-account path (locked, unreviewed)
+
+New or changed code the independent reviewer must cover before the build lock is flipped: guard/real_guard.py, guard/real_otp.py, guard/real_verify.py, guard/real_limits.py, guard/endpoint.py (real_unlocked), migrations/versions/0003_allow_real_mode.py, docker-compose.yml service bot-real. Questions for the reviewer: can any route reach a real endpoint with the lock closed; can a demo credential or account id be used in real mode, or the reverse; can the file values exceed the ceilings in guard/real_limits.py; does a failed fresh-balance read always mean no bet.

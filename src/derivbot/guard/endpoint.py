@@ -39,9 +39,14 @@ def classify_url(url: str, policy: EndpointPolicy) -> str | None:
     return {DEMO_PATH: "demo", REAL_PATH: "real"}.get(u.path)
 
 
-def build_ws_url(mode: str, policy: EndpointPolicy) -> str:
-    """The demo URL (without an OTP). There is no code path that returns a real URL."""
-    if mode != "demo":
-        raise RealTradingDisabled("only the demo endpoint can be built")
+def build_ws_url(mode: str, policy: EndpointPolicy, *, real_unlocked: bool = False) -> str:
+    """The WebSocket URL for a mode (without an OTP). The demo URL always; the REAL URL only when the caller proves the real mode was
+    resolved by derivbot.guard.real_guard (real_unlocked=True is passed only from the real mode code path, never from configuration)."""
+    if mode == "real" and real_unlocked:
+        path = REAL_PATH
+    elif mode == "demo":
+        path = DEMO_PATH
+    else:
+        raise RealTradingDisabled("the real endpoint can only be built after the real mode guard has resolved to real")
     port = f":{policy.port}" if policy.port else ""
-    return f"{policy.scheme}://{policy.host}{port}{DEMO_PATH}"
+    return f"{policy.scheme}://{policy.host}{port}{path}"

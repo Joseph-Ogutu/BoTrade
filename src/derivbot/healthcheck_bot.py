@@ -37,7 +37,7 @@ def main() -> int:  # pragma: no cover - exercised in the container
         from derivbot.kv.store import HeartbeatKV, RedisStore
 
         url = assemble_urls(env).get("REDIS_URL", "")
-        age = HeartbeatKV(RedisStore(redis.Redis.from_url(url, socket_connect_timeout=2))).age("bot")
+        age = HeartbeatKV(RedisStore(redis.Redis.from_url(url, socket_connect_timeout=2))).age(os.environ.get("HEARTBEAT_NAME", "bot"))
     except Exception:  # noqa: BLE001
         age = None
     ok, why = evaluate(api_ok, age)

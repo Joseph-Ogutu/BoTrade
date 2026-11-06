@@ -54,12 +54,13 @@ class Contract:
 
 class FakeDeriv:
     def __init__(self, r: float = 0.95, tick_interval: float = 0.01, settle_after: float = 0.05,
-                 symbol: str = "1HZ100V", balance: float = 10_000.0, win: bool = True) -> None:
+                 symbol: str = "1HZ100V", balance: float = 10_000.0, win: bool = True, loginid: str = "VRTC0000001") -> None:
         self.r = r
         self.tick_interval = tick_interval
         self.settle_after = settle_after
         self.symbol = symbol
         self.balance = balance
+        self.loginid = loginid
         self.win = win
         self.faults: list[Fault] = []
         self.received: list[dict[str, Any]] = []
@@ -200,7 +201,7 @@ class FakeDeriv:
             return [self._history(req)]
         if msg_type == "balance":
             return [self._envelope(req, "balance", balance={
-                "balance": self.balance, "currency": "USD", "loginid": "VRTC0000001", "id": _sid()},
+                "balance": self.balance, "currency": "USD", "loginid": self.loginid, "id": _sid()},
                 subscription={"id": _sid()})]
         if msg_type == "ticks":
             if req["ticks"] in self.closed_symbols:

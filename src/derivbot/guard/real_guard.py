@@ -29,11 +29,20 @@ class Mode(str, Enum):
     REAL = "real"
 
 
+_PROOF = object()           # known only to this module: the stamp that resolve_mode puts on a REAL decision
+
+
 @dataclass(frozen=True)
 class ModeDecision:
     mode: Mode
     failed: list[str] = field(default_factory=list)
     reasons: list[str] = field(default_factory=list)
+    _proof: object = field(default=None, repr=False, compare=False)
+
+    @property
+    def real_unlocked(self) -> bool:
+        """True only for a decision that resolve_mode itself issued as REAL. A hand-built ModeDecision(Mode.REAL) is not unlocked."""
+        return self.mode is Mode.REAL and self._proof is _PROOF
 
 
 def _approval_ok(repo_root: Path, head_commit: str | None) -> bool:
@@ -86,4 +95,4 @@ def resolve_mode(s: Settings, *, repo_root: str | Path, head_commit: str | None,
         return ModeDecision(Mode.DEMO, failed, [f"condition not met: {k}" for k in failed])
     if build_lock and not REAL_TRADING_IMPLEMENTED:
         return ModeDecision(Mode.DEMO, [], ["real trading is not implemented in this build (build lock)"])
-    return ModeDecision(Mode.REAL, [], [])
+    return ModeDecision(Mode.REAL, [], [], _PROOF)

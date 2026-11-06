@@ -77,10 +77,16 @@ def assert_schema_current(engine: Engine) -> None:
 
 
 def head_commit(root: Path = ROOT) -> str | None:
+    """The deployed commit: from git when there is a checkout, else the 40 hex digits baked into the image at build (GIT_COMMIT build
+    argument). The real-money approval file names a commit and is valid only for a deployment that matches it."""
     try:
-        return subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, timeout=5).stdout.strip() or None
+        got = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, timeout=5).stdout.strip()
     except (OSError, subprocess.SubprocessError):
-        return None
+        got = ""
+    if got:
+        return got
+    baked = os.environ.get("DERIVBOT_COMMIT", "").strip().lower()
+    return baked if len(baked) == 40 and all(c in "0123456789abcdef" for c in baked) else None
 
 
 @dataclass
@@ -104,6 +110,7 @@ class App:
     soak: Any = None
     audit: Any = None
     forward: Any = None
+    mode: str = "demo"
 
     def status(self) -> dict[str, Any]:
         info = self.verifier.get_info()
@@ -111,7 +118,7 @@ class App:
                 "tick_age_s": self.fresh.age(SYMBOLS[0]),
                 "ticks": {s: {"quote": self.fresh.last_tick[s][0], "epoch": self.fresh.last_tick[s][1], "age_s": self.fresh.age(s)}
                           for s in SYMBOLS if s in self.fresh.last_tick},
-                "mode": "demo", "session_connected": bool(self.supervisor and self.supervisor.session),
+                "mode": self.mode, "session_connected": bool(self.supervisor and self.supervisor.session),
                 "connects": self.supervisor.connects if self.supervisor else 0,
                 "last_session_error": self.supervisor.last_error if self.supervisor else None,
                 "reconcile_age_s": self.reconciler.age_s(), "signals": "on" if self.signal_runner else ("forward" if self.forward else ("soak" if self.soak else "off")),
@@ -122,7 +129,18 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
           policy: EndpointPolicy = PROD_POLICY, otp_provider: Any = None, flag_path: Path | None = None,
           accounts_view: Any = None) -> App:
     notes: list[str] = []
-    risk_cfg = load_risk_config(root / "config" / "risk.json")           # raises RiskConfigError naming every unset value
+    real_mode = settings.trading_mode == "real"
+    risk_cfg = load_risk_config(root / "config" / ("risk.real.json" if real_mode else "risk.json"))   # names every unset value
+    if real_mode:
+        from derivbot.guard.real_limits import RealLimitsError, validate_real_limits
+
+        try:
+            validate_real_limits(risk_cfg)                       # hard ceilings in code: no config edit can loosen them
+        except RealLimitsError as exc:
+            raise StartupError(str(exc)) from None
+        for flag in ("FORWARD_TEST", "PIPELINE_SOAK"):           # demo-only features can never run inside a real-money process
+            if os.environ.get(flag) == "1":
+                raise StartupError(f"{flag}=1 is a demo-only feature and is refused in a real-money process")
     approvals = load_strategy_approvals(root / "config" / "strategies.json")
     forward_approval = None
     if os.environ.get("FORWARD_TEST") == "1":
@@ -153,9 +171,16 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
     from derivbot.db.audit import append_audit
     from derivbot.guard.real_guard import Mode, resolve_mode
 
-    decision = resolve_mode(settings, repo_root=root, head_commit=head_commit(root), otp_endpoint_mode=None)
-    if decision.mode is not Mode.DEMO:                       # unreachable while the build lock is closed; kept as a tripwire
-        raise StartupError("mode guard did not resolve to demo")
+    if real_mode:
+        # The five conditions of HANDBOOK 11.4 plus the build lock. otp_endpoint_mode "real" states the intent; the endpoint and the
+        # account are PROVED at OTP time (the URL must classify as real) and at connect time (the loginid must be the configured one).
+        decision = resolve_mode(settings, repo_root=root, head_commit=head_commit(root), otp_endpoint_mode="real")
+        if not decision.real_unlocked:
+            raise StartupError("real mode refused by the real-money guard: " + "; ".join(decision.reasons or decision.failed))
+    else:
+        decision = resolve_mode(settings, repo_root=root, head_commit=head_commit(root), otp_endpoint_mode=None)
+        if decision.mode is not Mode.DEMO:                   # a demo process must never come out of the guard as real
+            raise StartupError("mode guard did not resolve to demo")
     with engine.begin() as c:
         append_audit(c, "app", "MODE_GUARD", {"mode": decision.mode.value, "unmet_conditions": decision.failed, "reasons": decision.reasons})
     ks = KillSwitch(kv, PgEventLog(engine), flag_path or Path(os.environ.get("KILL_SWITCH_PATH", "/data/KILL_SWITCH")))
@@ -175,7 +200,15 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
     from derivbot.execution.minstake import MinStakeCache
 
     min_stake = MinStakeCache(SYMBOLS)
-    verifier = DemoConnectionVerifier(settings.deriv_account_id_demo or "")
+    if real_mode:
+        from derivbot.guard.real_otp import real_account_id
+        from derivbot.guard.real_verify import RealConnectionVerifier
+
+        account_id = real_account_id(decision, settings)
+        verifier: Any = RealConnectionVerifier(decision, account_id)
+    else:
+        account_id = settings.deriv_account_id_demo or ""
+        verifier = DemoConnectionVerifier(account_id)
     reconciler_box: dict[str, Reconciler] = {}
     sup_box: dict[str, SessionSupervisor | None] = {"s": None}
     deps = ExecutorDeps(
@@ -183,7 +216,8 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
         get_session=lambda: sup_box["s"].session if sup_box["s"] else None, get_conn_info=verifier.get_info,
         last_tick_age=lambda: fresh.age(SYMBOLS[0]), last_reconcile_age=lambda: reconciler_box["r"].age_s(),
         api_min_stake=min_stake.get,         # from proposal validation_params on every connect; unknown means no trade
-        account_id=settings.deriv_account_id_demo or "", on_alert=notifier.submit, fresh_balance=True)
+        account_id=account_id, on_alert=notifier.submit, fresh_balance=True,
+        configured_mode="real" if real_mode else "demo", real_unlocked=bool(real_mode and decision.real_unlocked))
     executor = Executor(deps)
     forward = None
     if forward_approval is not None:
@@ -197,7 +231,14 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
     reconciler_box["r"] = reconciler
 
     supervisor = None
-    if otp_provider is None and settings.deriv_app_id_demo and settings.deriv_pat_demo and settings.deriv_account_id_demo:
+    if otp_provider is None and real_mode:
+        from derivbot.guard.real_otp import RealOtpProvider
+
+        try:
+            otp_provider = RealOtpProvider.from_settings(decision, settings, policy=policy)
+        except Exception as exc:  # noqa: BLE001 - missing real credentials: no session, so no trade
+            notes.append(f"no real credentials usable: the Deriv session is not started ({type(exc).__name__})")
+    elif otp_provider is None and settings.deriv_app_id_demo and settings.deriv_pat_demo and settings.deriv_account_id_demo:
         otp_provider = HttpOtpProvider.from_settings(settings, policy=policy)
     if otp_provider is not None:
         limiter = RateLimiter(DEFAULT_LIMITS)
@@ -214,13 +255,13 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
                                                      *([forward.on_disconnected] if forward else [])])
         sup_box["s"] = supervisor
     else:
-        notes.append("no demo credentials: the Deriv session is not started")
+        notes.append("no demo credentials: the Deriv session is not started" if not real_mode else "no real session: nothing will trade")
 
     runner = None
     try:
         approval = require_real_data_approval(root)
-        runner = SignalRunner(approval, approvals, default_strategies(), SYMBOLS[0], settings.deriv_account_id_demo or "",
-                              lambda req: asyncio.get_event_loop().create_task(executor.submit(req)))
+        runner = SignalRunner(approval, approvals, default_strategies(), SYMBOLS[0], account_id,
+                              lambda req: asyncio.get_event_loop().create_task(executor.submit(req)), mode="real" if real_mode else "demo")
         fresh.add_sink(runner.on_tick)
     except RealDataNotApproved as exc:
         notes.append(f"signals off: real-data use not approved ({exc})")
@@ -247,7 +288,15 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
                                interval_s=float(os.environ.get("AUDIT_INTERVAL_S", str(6 * 3600))))
 
     app_box: dict[str, App] = {}
-    if accounts_view is None and settings.deriv_app_id_demo and settings.deriv_pat_demo:
+    if accounts_view is None and real_mode:
+        from derivbot.api.accounts_view import AccountsView
+        from derivbot.guard.real_otp import real_view_credentials
+
+        try:
+            accounts_view = AccountsView(*real_view_credentials(decision, settings), ttl_s=15.0)
+        except Exception:  # noqa: BLE001 - the view is optional
+            accounts_view = None
+    elif accounts_view is None and settings.deriv_app_id_demo and settings.deriv_pat_demo:
         from derivbot.api.accounts_view import AccountsView
 
         accounts_view = AccountsView(settings.deriv_app_id_demo, settings.deriv_pat_demo.get_secret_value(), ttl_s=15.0)
@@ -256,7 +305,7 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
         from derivbot.api.dashboard import build_summary
 
         with engine.connect() as conn:
-            out = build_summary(conn, dt.datetime.now(dt.UTC))
+            out = build_summary(conn, dt.datetime.now(dt.UTC), "real" if real_mode else "demo")
         out["accounts"] = accounts_view.get() if accounts_view else None
         from derivbot.audit.loop import last_verdict
 
@@ -286,16 +335,16 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
         from derivbot.api.dashboard import trades_page
 
         with engine.connect() as conn:
-            return trades_page(conn, page, size)
+            return trades_page(conn, page, size, "real" if real_mode else "demo")
 
     api = create_app(ks, settings.admin_api_token.get_secret_value() if settings.admin_api_token else None,
                      lambda: app_box["a"].status(), summary, password_hash=password_hash, trades_provider=trades)
     cmds = TelegramCommands(ks, set(chat_ids), lambda: app_box["a"].status(), on_unauthorized=lambda c, t: log.warning("telegram: unlisted chat"))
     poller = TelegramPoller(transport, cmds) if (settings.telegram_bot_token and chat_ids) else None
-    hb = Heartbeater(HeartbeatKV(kv, ttl_s=60), "bot", notifier, lambda: {"signals": "on" if runner else "off"}, interval_s=10)
+    hb = Heartbeater(HeartbeatKV(kv, ttl_s=60), os.environ.get("HEARTBEAT_NAME", "bot"), notifier, lambda: {"signals": "on" if runner else "off"}, interval_s=10)
     reporter = DailyReporter(notifier, engine, kv, hour_utc=risk_cfg.daily_reset_utc_hour)
     app = App(settings, engine, kv, ks, notifier, executor, reconciler, supervisor, verifier, fresh, hb, reporter, api, poller, runner, notes,
-              soak=soak, audit=audit_loop, forward=forward)
+              soak=soak, audit=audit_loop, forward=forward, mode="real" if real_mode else "demo")
     app_box["a"] = app
     return app
 
@@ -321,7 +370,7 @@ async def run(app: App, halt: asyncio.Event, api_port: int = 8787) -> None:
         ("api", server.serve()), ("flag_file", watch_flag_file(app.kill_switch, halt)), ("notifier", app.notifier.run(halt)),
         ("heartbeat", app.heartbeater.run(halt)), ("reconcile", app.reconciler.run_periodic(halt)),
         ("report", _report_loop(app, halt)),
-        ("balance_history", BalanceHistory(app.engine, app.verifier.get_info, app.settings.deriv_account_id_demo or "").run(halt))]]
+        ("balance_history", BalanceHistory(app.engine, app.verifier.get_info, app.executor.d.account_id, mode=app.mode).run(halt))]]
     if app.supervisor:
         tasks.append(asyncio.create_task(app.supervisor.run(halt), name="session"))
     if app.soak:
@@ -334,7 +383,8 @@ async def run(app: App, halt: asyncio.Event, api_port: int = 8787) -> None:
         tasks.append(asyncio.create_task(app.poller.run(halt), name="telegram"))
     for note in app.notes:
         log.warning("%s", note)
-    app.notifier.submit("info", "trading service started (demo). " + "; ".join(app.notes))
+    app.notifier.submit("info" if app.mode == "demo" else "warning",
+                        f"trading service started ({'REAL MONEY' if app.mode == 'real' else 'demo'}). " + "; ".join(app.notes))
     await halt.wait()
     server.should_exit = True
     await app.executor.shutdown()
@@ -362,10 +412,14 @@ def main() -> int:  # pragma: no cover - entry point
         env = {**parse_env_file(os.environ["ENV_FILE"]), **env}
     settings = load_settings(env)
     setup_logging(settings.log_level)
-    if settings.trading_mode != "demo":
-        log.critical("TRADING_MODE is not demo: refusing to start (real trading is not implemented)")
+    if settings.trading_mode not in ("demo", "real"):
+        log.critical("TRADING_MODE must be demo or real: refusing to start")
         return 2
-    app = build(settings)
+    try:
+        app = build(settings)
+    except StartupError as exc:
+        log.critical("refusing to start: %s", exc)
+        return 2
 
     async def amain() -> None:
         halt = asyncio.Event()

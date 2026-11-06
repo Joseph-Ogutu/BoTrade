@@ -62,3 +62,19 @@ async def test_the_loop_retries_quickly_until_the_first_point_then_settles_to_th
     halt.set()
     await asyncio.wait_for(task, 2)
     engine.dispose()
+
+
+def test_real_mode_records_only_a_proven_real_account_and_demo_mode_only_a_proven_demo_one(pg_url):
+    engine = create_engine(pg_url)
+    real_ok = ConnInfo("real", False, D("77.70"), "USD", "ROT00000002")
+    demo_ok = ConnInfo("demo", True, D("55.50"), "USD", "DOT00000001")
+    before = len(rows(engine))
+    cases = [("real", real_ok, True), ("real", demo_ok, False), ("real", ConnInfo("real", None, D("1"), "USD"), False),
+             ("real", ConnInfo("real", True, D("1"), "USD"), False), ("demo", real_ok, False), ("demo", demo_ok, True),
+             ("paper", real_ok, False)]
+    for mode, info, expect in cases:
+        h = BalanceHistory(engine, lambda info=info: info, "ACC", mode=mode)
+        assert h.record_once() is expect, (mode, info)
+    written = rows(engine)[before:]
+    assert [(r[0], r[2]) for r in written] == [("real", D("77.70")), ("demo", D("55.50"))]                 # mode column follows the proof
+    engine.dispose()

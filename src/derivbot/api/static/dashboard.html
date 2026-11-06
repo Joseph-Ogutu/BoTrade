@@ -215,6 +215,7 @@ dialog form{display:grid;gap:12px} dialog h1{margin:0;font-size:1.1rem} dialog p
 <header class="bar hidden" id="bar">
   <div class="in">
     <div class="brand"><span class="logo"><svg viewBox="0 0 24 24"><path d="M4 16l5-5 4 4 7-8"/><path d="M15 7h5v5"/></svg></span><span>BoTrade</span></div>
+    <span class="chip bad hidden" id="realBadge"><svg class="ic sm"><use href="#i-alert"/></svg>REAL MONEY</span>
     <span class="sp"></span>
     <span class="chip live" id="live"><span class="dot"></span><span id="liveText">connecting</span></span>
     <button type="button" class="icon" id="themeBtn" aria-label="Switch theme" title="Theme"><svg class="ic"><use href="#i-auto" id="themeUse"/></svg></button>
@@ -249,7 +250,7 @@ dialog form{display:grid;gap:12px} dialog h1{margin:0;font-size:1.1rem} dialog p
 
     <section class="grid hero" aria-label="Accounts">
       <article class="card equity">
-        <h2><svg class="ic sm"><use href="#i-trend"/></svg>Demo account <span class="chip ok">bot trades here</span></h2>
+        <h2><svg class="ic sm"><use href="#i-trend"/></svg>Demo account <span class="chip ok" id="demoChip">bot trades here</span></h2>
         <div class="top"><div class="big" id="demoBal">-</div><span class="delta" id="demoDelta">&nbsp;</span></div>
         <div class="chart" id="chart"><div class="none">No balance history yet</div></div>
       </article>
@@ -259,7 +260,7 @@ dialog form{display:grid;gap:12px} dialog h1{margin:0;font-size:1.1rem} dialog p
           <div class="big" id="realBal">-</div>
           <div class="chip warn" id="realChip">view only</div>
         </div>
-        <div class="lockrow"><svg class="ic"><use href="#i-lock"/></svg><span>Trading on the real account is locked in this build. The balance is read-only and refreshes every 15 seconds.</span></div>
+        <div class="lockrow"><svg class="ic"><use href="#i-lock"/></svg><span id="lockText">Trading on the real account is locked in this build. The balance is read-only and refreshes every 15 seconds.</span></div>
       </article>
     </section>
 
@@ -453,7 +454,12 @@ function render(d){
   var dl=$("demoDelta");dl.textContent=delta===null?"no history yet":signed(delta,cur)+" today";dl.className="delta"+(delta>0?" pos":delta<0?" neg":"");
   equityChart(d.equity_curve,cur);
   var real=a&&a.real;$("realBal").textContent=real&&real.balance!==null&&real.balance!==undefined?money(real.balance,real.currency||"USD"):"-";
-  var rc=$("realChip");chip(rc,"warn",a&&a.error?"view only, refresh failed":"view only",false);rc.insertBefore(icon("i-lock",true),rc.firstChild);
+  var realMode=d.mode==="real",rc=$("realChip");
+  $("realBadge").classList.toggle("hidden",!realMode);document.title=realMode?"BoTrade REAL":"BoTrade Console";
+  chip($("demoChip"),realMode?"info":"ok",realMode?"view only":"bot trades here",false);
+  if(realMode){chip(rc,"bad","REAL MONEY: the bot trades here",false);rc.insertBefore(icon("i-alert",true),rc.firstChild)}
+  else{chip(rc,"warn",a&&a.error?"view only, refresh failed":"view only",false);rc.insertBefore(icon("i-lock",true),rc.firstChild)}
+  $("lockText").textContent=realMode?"This bot is trading this account with real money, within the daily rules and hard limits. The kill switch stops it at once.":"Trading on the real account is locked in this build. The balance is read-only and refreshes every 15 seconds.";
 
   var t=d.today||{},states=t.intent_states||{},total=0,rej=states.RISK_REJECTED||0;Object.keys(states).forEach(function(k){total+=states[k]});
   setText("kTrades",String(total));$("kTradesSub").textContent=rej+" stopped by risk checks";

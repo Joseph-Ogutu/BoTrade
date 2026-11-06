@@ -20,17 +20,20 @@ log = logging.getLogger(__name__)
 
 
 class BalanceHistory:
-    def __init__(self, engine: Engine, get_info: Callable[[], ConnInfo], account_id: str, interval_s: float = 300.0) -> None:
-        self.engine, self.get_info, self.account_id, self.interval_s = engine, get_info, account_id, interval_s
+    def __init__(self, engine: Engine, get_info: Callable[[], ConnInfo], account_id: str, interval_s: float = 300.0,
+                 mode: str = "demo") -> None:
+        self.engine, self.get_info, self.account_id, self.interval_s, self.mode = engine, get_info, account_id, interval_s, mode
         self.retry_s = 10.0
 
     def record_once(self) -> bool:
         info = self.get_info()
-        if info.balance is None or not info.currency or info.endpoint_mode != "demo" or info.account_is_demo is not True:
+        proven = (info.endpoint_mode == "demo" and info.account_is_demo is True) if self.mode == "demo" else \
+                 (self.mode == "real" and info.endpoint_mode == "real" and info.account_is_demo is False)
+        if info.balance is None or not info.currency or not proven:
             return False
         try:
             with self.engine.begin() as conn:
-                repo.record_balance(conn, mode="demo", account_id=self.account_id, balance=info.balance, currency=info.currency)
+                repo.record_balance(conn, mode=self.mode, account_id=self.account_id, balance=info.balance, currency=info.currency)
         except Exception as exc:  # noqa: BLE001
             log.warning("balance history write failed: %s", type(exc).__name__)
             return False

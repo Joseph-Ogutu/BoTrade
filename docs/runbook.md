@@ -309,3 +309,23 @@ ssh -t -i ~/.ssh/<key> deploy@<host> 'cd /opt/derivbot && python3 scripts/set_da
 ```
 
 At least 12 characters; a few unrelated words is better than a clever short one. No restart is needed: the bot reads the hash file at each login, and changing it signs every existing session out. Login creates a session cookie (HttpOnly, SameSite=Strict, Secure over HTTPS) valid for 8 hours absolute and 2 hours idle; sessions live in the bot's memory, so a restart signs everyone out. A write through a cookie session (kill) also requires the `X-Requested-With: botrade` header. The release endpoint accepts ONLY the admin token and is blocked from the internet by the proxy. The admin token still works as a fallback and for command line tools. The same lockout applies to wrong passwords (10 per address in 10 minutes, then 15 minutes). If you forget the password: run the script again on the VM.
+
+
+### 12.12 Real mode (built, locked, not deployed)
+
+The real-money path exists in code and is inert. Nothing below happens unless the owner completes every step; an agent never performs steps 2, 4, 5 or 6.
+
+What is in place: a separate service `bot-real` (compose profile `real`, loopback port 8788) that runs with `TRADING_MODE=real`; its own risk file `config/risk.real.json`; hard ceilings in `src/derivbot/guard/real_limits.py` that the file cannot exceed (stake fraction 0.15, 5 trades a day, 2 losses a day, stop after 3 wins, 1 open position, daily loss at most 30 percent of the starting balance, slippage at most 0.02, payout at least 0.80); a real-only credential reader (`guard/real_otp.py`) and connection check (`guard/real_verify.py`) that refuse a demo account id; and a database migration (0003) that allows `mode = 'real'` rows. The demo bot and the default compose services never carry real settings (tests/unit/test_real_service_config.py).
+
+Owner steps, in order:
+
+1. Independent review of `docs/review-security.md` and `docs/review-risk-executor.md` by someone other than the author; findings fixed and re-reviewed.
+2. Owner flips `REAL_TRADING_IMPLEMENTED` to `True` in `src/derivbot/guard/real_guard.py` in a reviewed commit.
+3. Fill every `SET_BY_OWNER` value in `config/risk.real.json`.
+4. Tick and sign `docs/live-readiness.md`.
+5. Create the `REAL_TRADING_APPROVED` file with `approved_on`, `commit` (the exact deployed commit) and `approved_by`.
+6. Put the real Trade token in `secrets/deriv_pat_real`; set `DERIV_APP_ID_REAL`, `DERIV_ACCOUNT_ID_REAL` and `GIT_COMMIT` in `vm.env`; fund the account with an amount you can lose entirely.
+7. Start with `docker compose --env-file vm.env --profile real up -d bot-real`.
+
+Even then, real signals need the Gate 1 run record with the owner's data approval line, and a strategy approved in `config/strategies.json`. If any requirement is missing the process refuses to start and says which one. The kill switch is shared with the demo bot.
+

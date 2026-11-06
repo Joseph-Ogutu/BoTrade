@@ -66,3 +66,8 @@ Any path to a buy without risk approval; any second buy for one intent; any rele
 ## Deliverable
 
 A written report with: findings ranked by severity (each with a reproducing test or sequence), what you could not assess, and the exact commit you reviewed (`git rev-parse HEAD`). Do not fix code in the review; open findings for the owner.
+
+
+## Addendum 2026-11-06: real-account path (locked, unreviewed)
+
+New or changed code the independent reviewer must cover before the build lock is flipped: risk/rules.py mode_and_account_consistent (real branch), execution/executor.py fresh balance and real_unlocked, app.py real_mode branch, config/risk.real.json. Questions for the reviewer: can any route reach a real endpoint with the lock closed; can a demo credential or account id be used in real mode, or the reverse; can the file values exceed the ceilings in guard/real_limits.py; does a failed fresh-balance read always mean no bet.

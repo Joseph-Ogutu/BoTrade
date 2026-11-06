@@ -36,18 +36,28 @@ def kill_switch_clear(engaged: bool) -> RuleResult:
 
 # 2
 def mode_and_account_consistent(configured_mode: str, intent_mode: str, endpoint_mode: str | None,
-                                account_is_demo: bool | None) -> RuleResult:
-    observed = f"configured={configured_mode} intent={intent_mode} endpoint={_s(endpoint_mode)} demo_account={_s(account_is_demo)}"
-    if configured_mode != "demo" or intent_mode != "demo":
-        return RuleResult("mode_and_account_consistent", False, observed, "demo only", "real mode is unreachable in this build")
-    if endpoint_mode != "demo":
-        return RuleResult("mode_and_account_consistent", False, observed, "demo only", "connected endpoint is not the demo endpoint")
-    if account_is_demo is not True:
-        return RuleResult("mode_and_account_consistent", False, observed, "demo only", "account type is not confirmed demo")
-    return RuleResult("mode_and_account_consistent", True, observed, "demo only")
+                                account_is_demo: bool | None, real_unlocked: bool = False) -> RuleResult:
+    """The mode of the process, of the intent, of the connected endpoint and of the account must all agree, or nothing is sent.
+    Demo: the demo endpoint and an account confirmed demo. Real: the real-money guard must have resolved to REAL (real_unlocked), the
+    real endpoint, and an account confirmed REAL (account_is_demo is False). Anything unknown fails closed."""
+    observed = f"configured={configured_mode} intent={intent_mode} endpoint={_s(endpoint_mode)} demo_account={_s(account_is_demo)} unlocked={real_unlocked}"
+    if configured_mode not in ("demo", "real") or intent_mode != configured_mode:
+        return RuleResult("mode_and_account_consistent", False, observed, "modes agree", "configured mode and intent mode differ or are unknown")
+    if configured_mode == "demo":
+        if endpoint_mode != "demo":
+            return RuleResult("mode_and_account_consistent", False, observed, "demo only", "connected endpoint is not the demo endpoint")
+        if account_is_demo is not True:
+            return RuleResult("mode_and_account_consistent", False, observed, "demo only", "account type is not confirmed demo")
+        return RuleResult("mode_and_account_consistent", True, observed, "demo only")
+    if not real_unlocked:
+        return RuleResult("mode_and_account_consistent", False, observed, "real, unlocked", "the real-money guard has not resolved to real")
+    if endpoint_mode != "real":
+        return RuleResult("mode_and_account_consistent", False, observed, "real, unlocked", "connected endpoint is not the real endpoint")
+    if account_is_demo is not False:
+        return RuleResult("mode_and_account_consistent", False, observed, "real, unlocked", "account is not confirmed to be the real account")
+    return RuleResult("mode_and_account_consistent", True, observed, "real, unlocked")
 
 
-# 3
 def connection_and_reconciliation_healthy(connection_healthy: bool, last_reconcile_age_s: float | None,
                                           max_age_s: int) -> RuleResult:
     observed = f"connected={connection_healthy} last_reconcile_age_s={_s(last_reconcile_age_s)}"

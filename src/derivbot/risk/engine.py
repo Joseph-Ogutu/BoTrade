@@ -49,6 +49,7 @@ class RiskContext:
     trades_today: int = 0
     losses_today: int = 0
     win_streak_today: int = 0
+    real_unlocked: bool = False
 
 
 @dataclass(frozen=True)
@@ -89,7 +90,7 @@ class RiskEngine:
         stake = self.stake_for(ctx)
         results = (
             rules.kill_switch_clear(ctx.kill_switch_engaged),
-            rules.mode_and_account_consistent(ctx.configured_mode, i.mode, ctx.endpoint_mode, ctx.account_is_demo),
+            rules.mode_and_account_consistent(ctx.configured_mode, i.mode, ctx.endpoint_mode, ctx.account_is_demo, ctx.real_unlocked),
             rules.connection_and_reconciliation_healthy(ctx.connection_healthy, ctx.last_reconcile_age_s, c.reconcile_max_age_s),
             rules.market_data_fresh(ctx.last_tick_age_s, c.stale_data_max_age_s),
             rules.open_positions_within_limit(ctx.open_positions, c.max_open_positions),

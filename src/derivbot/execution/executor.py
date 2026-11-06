@@ -77,6 +77,7 @@ class ExecutorDeps:
     clock: Callable[[], dt.datetime] = lambda: dt.datetime.now(dt.UTC)
     on_alert: Callable[[str, str], None] = lambda level, text: None
     configured_mode: str = "demo"
+    real_unlocked: bool = False               # True only in a process whose real-money guard decision was issued as REAL
     request_timeout: float = 10.0
     buy_unknown_window_s: float = 60.0        # how long after BUY_SENT "not found" may be believed
     clock_skew_tolerance_s: int = 10          # UNVERIFIED: how far apart our clock and Deriv's purchase_time may be
@@ -118,6 +119,12 @@ class Executor:
     async def submit(self, req: IntentRequest, duration: int = 5, duration_unit: str = "t",
                      wait_settlement: bool = True, settlement_timeout: float = 120.0) -> ExecutionResult:
         """Run one intent end to end. An unexpected exception engages the kill switch and alerts (HANDBOOK 10.5)."""
+        if req.mode != self.d.configured_mode:
+            # An intent for the other mode can only come from a programming error. It is refused before anything is stored, the kill
+            # switch is engaged and the owner is alerted: this replaces the demo-only database constraint that migration 0003 removed.
+            self.d.kill_switch.engage("executor_exception", f"intent mode {req.mode} differs from the process mode {self.d.configured_mode}")
+            self._alert("critical", f"intent mode {req.mode} refused in a {self.d.configured_mode} process, kill switch engaged")
+            return ExecutionResult(None, None, "mode mismatch: refused")
         token = self._lock.acquire(req.idempotency_key)
         if token is None:
             return ExecutionResult(None, None, "duplicate: another submit holds this idempotency key")
@@ -155,6 +162,7 @@ class Executor:
         return RiskContext(
             intent=req, configured_mode=self.d.configured_mode, endpoint_mode=info.endpoint_mode,
             account_is_demo=info.account_is_demo, kill_switch_engaged=self.d.kill_switch.is_engaged(),
+            real_unlocked=self.d.real_unlocked,
             connection_healthy=session is not None and session.connected,
             last_reconcile_age_s=self.d.last_reconcile_age(), last_tick_age_s=self.d.last_tick_age(),
             balance=balance, api_min_stake=api_min, open_positions=s["open_positions"], realized_pnl_today=s["pnl"],
@@ -232,8 +240,15 @@ class Executor:
         if self.d.kill_switch.is_engaged():
             return await self._proposal_failed(intent_id, "kill switch engaged before buy", sub_id, session)
         info2 = self.d.get_conn_info()
-        if self.d.configured_mode != "demo" or info2.endpoint_mode != "demo" or info2.account_is_demo is not True:
-            return await self._proposal_failed(intent_id, "demo mode not confirmed before buy", sub_id, session)
+        mode = self.d.configured_mode
+        if mode == "demo":
+            mode_ok = info2.endpoint_mode == "demo" and info2.account_is_demo is True
+        elif mode == "real":                     # the guard unlocked it AND the live connection is the real account, re-read just now
+            mode_ok = self.d.real_unlocked and info2.endpoint_mode == "real" and info2.account_is_demo is False
+        else:
+            mode_ok = False
+        if not mode_ok or req.mode != mode:
+            return await self._proposal_failed(intent_id, f"{mode} mode not confirmed before buy", sub_id, session)
         if not session.connected:
             return await self._proposal_failed(intent_id, "connection lost before buy", sub_id, session)
 
@@ -441,7 +456,7 @@ class Executor:
         def write(conn: Connection) -> None:
             repo.transition(conn, iid, State.BUY_UNKNOWN, Event.FOUND_IN_PORTFOLIO, {"contract_id": contract_id})
             repo.open_order(conn, iid, contract_id=contract_id, transaction_id=None, buy_price=buy_price, payout=payout,
-                            mode="demo", account_id=row.account_id)
+                            mode=self.d.configured_mode, account_id=row.account_id)
             append_audit(conn, "executor", "BUY_UNKNOWN", {"resolved": "OPEN", "contract_id": contract_id}, ref_id=iid)
 
         await self._db(write)

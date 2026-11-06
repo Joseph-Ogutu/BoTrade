@@ -65,3 +65,27 @@ def test_pagination_of_an_empty_table(conn):
     from derivbot.api.dashboard import trades_page
     r = trades_page(conn, 1, 15)
     assert r == {"page": 1, "size": 15, "total": 0, "pages": 1, "items": []}
+
+
+def test_every_number_is_for_the_current_mode_only_demo_and_real_never_mix(conn):
+    import uuid
+
+    from sqlalchemy import text
+
+    from derivbot.api.dashboard import trades_page
+    seed(conn)                                                                    # demo trades, balances and a rejection
+    for mode, bal in (("real", "42.00"),):
+        conn.execute(text("INSERT INTO balance_snapshots (mode, account_id, balance, currency, ts) VALUES (:m, 'R', :b, 'USD', :t)"),
+                     {"m": mode, "b": bal, "t": D0 + dt.timedelta(hours=10)})
+    iid = str(uuid.uuid4())
+    conn.execute(text("INSERT INTO order_intents (id, idempotency_key, created_at, mode, account_id, symbol, contract_type, stake, state) "
+                      "VALUES (:i, :k, :t, 'real', 'R', 'S', 'CALL', 1, 'SETTLED')"), {"i": iid, "k": uuid.uuid4().hex, "t": D0 + dt.timedelta(hours=10)})
+    conn.execute(text("INSERT INTO orders (id, intent_id, state, profit, settled_at, mode, account_id) VALUES (gen_random_uuid(), :i, 'SETTLED', 9, :t, 'real', 'R')"),
+                 {"i": iid, "t": D0 + dt.timedelta(hours=10)})
+    now = D0 + dt.timedelta(hours=12)
+    demo, real = build_summary(conn, now, "demo"), build_summary(conn, now, "real")
+    assert demo["today"]["settled"] == 3 and demo["today"]["pnl"] == pytest.approx(-1.05) and demo["balance"]["value"] == pytest.approx(998.95)
+    assert real["today"]["settled"] == 1 and real["today"]["pnl"] == pytest.approx(9.0) and real["balance"]["value"] == pytest.approx(42.0)
+    assert real["risk_rejections_today"] == {} and real["open_exposure"] == 0 and real["equity_curve"] == [42.0]
+    assert trades_page(conn, 1, 15, "real")["total"] == 1 and trades_page(conn, 1, 15, "demo")["total"] == 6
+    assert trades_page(conn, 1, 15)["total"] == 6                                          # the default stays demo

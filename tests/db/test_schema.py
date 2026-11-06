@@ -88,11 +88,13 @@ def _intent(conn, **kw):
     return row
 
 
-def test_real_mode_is_rejected_by_a_database_constraint(conn):
-    _intent(conn)  # demo is fine
+def test_the_mode_column_accepts_only_demo_and_real_since_migration_0003(conn):
+    _intent(conn)                                                 # demo is fine
     conn.commit()
-    with pytest.raises(IntegrityError, match="order_intents_demo_only"):
-        _intent(conn, mode="real")
+    _intent(conn, mode="real")                                    # real is allowed by the schema now: the other layers decide
+    conn.rollback()                                               # never kept: the downgrade below refuses to run over real rows, by design
+    with pytest.raises(IntegrityError, match="mode"):
+        _intent(conn, mode="paper")                               # any other value is still refused by the column CHECK
     conn.rollback()
 
 

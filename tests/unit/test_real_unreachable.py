@@ -29,12 +29,17 @@ def test_layer_3_risk_rule_rejects_anything_but_demo():
 def test_layer_4_the_executor_rereads_demo_ness_immediately_before_the_buy():
     text = (ROOT / "src/derivbot/execution/executor.py").read_text()
     pre_buy = text.split("# ---- buy: commit BUY_SENT first")[0]
-    assert "demo mode not confirmed before buy" in pre_buy and "get_conn_info()" in pre_buy
+    assert "mode not confirmed before buy" in pre_buy and "get_conn_info()" in pre_buy and "real_unlocked" in pre_buy
 
 
-def test_layer_5_database_constraints_exist_for_intents_and_orders():
-    sql = (ROOT / "migrations/versions/0001_initial_schema.py").read_text()
-    assert "order_intents_demo_only CHECK (mode = 'demo')" in sql and "orders_demo_only CHECK (mode = 'demo')" in sql
+def test_layer_5_the_demo_only_database_constraints_were_removed_deliberately_by_migration_0003_and_the_mode_column_check_stays():
+    """HISTORY: 0001 created order_intents_demo_only and orders_demo_only. On 2026-11-06 migration 0003 dropped them on purpose (the
+    real-account path). The column CHECK (mode IN ('demo','real')) from 0001 remains. The layer was replaced by the executor refusing
+    an intent whose mode differs from the process mode (engages the kill switch) and by risk rule 2."""
+    first = (ROOT / "migrations/versions/0001_initial_schema.py").read_text()
+    third = (ROOT / "migrations/versions/0003_allow_real_mode.py").read_text()
+    assert "order_intents_demo_only CHECK (mode = 'demo')" in first and "mode text NOT NULL CHECK (mode IN ('demo','real'))" in first
+    assert "DROP CONSTRAINT IF EXISTS order_intents_demo_only" in third and "DROP CONSTRAINT IF EXISTS orders_demo_only" in third
 
 
 def test_layer_6_the_approval_file_and_the_checklist_are_not_in_the_repository_and_the_file_is_ignored():
@@ -50,6 +55,11 @@ def test_layer_7_example_env_and_config_enable_nothing():
         assert env[k] == ""
 
 
-def test_layer_8_only_the_otp_provider_and_the_executor_path_connect_and_neither_can_use_real_credentials():
+def test_layer_8_real_credentials_are_read_only_inside_the_guard_package_and_settings():
+    """Deliberate change 2026-11-06 (real-account path): guard/real_otp.py reads them too, and only it. Anything new on this list is a
+    visible, reviewable decision, which is what this test is for."""
     uses = [p.name for p in (ROOT / "src").rglob("*.py") if re.search(r"deriv_pat_real|deriv_account_id_real|deriv_app_id_real", p.read_text())]
-    assert sorted(uses) == ["real_guard.py", "settings.py"]          # real credentials are read by nothing else
+    assert sorted(uses) == ["real_guard.py", "real_otp.py", "settings.py"]
+    for p in (ROOT / "src").rglob("*.py"):
+        if p.name == "real_otp.py":
+            assert p.parent.name == "guard"                           # and it lives in the guard package

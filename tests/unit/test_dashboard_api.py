@@ -95,7 +95,7 @@ def test_bind_rules_loopback_always_and_all_interfaces_only_for_a_container():
 def test_compose_publishes_the_api_on_the_host_loopback_only():
     compose = (Path(__file__).resolve().parents[2] / "docker-compose.yml").read_text()
     ports = re.findall(r"^\s*-\s*\"?([0-9.:]+8787[:0-9]*)\"?\s*$", compose, re.M)
-    assert ports == ["127.0.0.1:8787:8787"]
+    assert ports == ["127.0.0.1:8787:8787", "127.0.0.1:8788:8787"]            # the demo bot and the opt-in real bot, both host-loopback only
     assert "ADMIN_API_BIND: container" in compose
 
 

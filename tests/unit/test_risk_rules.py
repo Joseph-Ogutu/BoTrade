@@ -14,8 +14,9 @@ def test_mode_and_account_every_branch():
     ok = r.mode_and_account_consistent("demo", "demo", "demo", True)
     assert ok.passed
     bad = r.mode_and_account_consistent("real", "demo", "demo", True)
-    assert not bad.passed and "unreachable" in bad.detail
+    assert not bad.passed and "differ" in bad.detail
     assert not r.mode_and_account_consistent("demo", "real", "demo", True).passed
+    assert not r.mode_and_account_consistent("live", "live", "demo", True).passed             # an unknown mode never passes
     assert not r.mode_and_account_consistent("demo", "demo", "real", True).passed
     assert not r.mode_and_account_consistent("demo", "demo", None, True).passed
     assert not r.mode_and_account_consistent("demo", "demo", "demo", False).passed
@@ -119,3 +120,16 @@ def test_daily_loss_count_stop_every_branch():
     assert not r.losses_per_day_within_limit(7, 3).passed
     none = r.losses_per_day_within_limit(100, None)
     assert none.passed and none.limit == "no daily stop set"
+
+
+def test_real_mode_needs_the_guard_the_real_endpoint_and_an_account_confirmed_real():
+    ok = r.mode_and_account_consistent("real", "real", "real", False, real_unlocked=True)
+    assert ok.passed and ok.limit == "real, unlocked"
+    locked = r.mode_and_account_consistent("real", "real", "real", False)                          # the guard has not resolved to real
+    assert not locked.passed and "guard" in locked.detail
+    assert "endpoint" in r.mode_and_account_consistent("real", "real", "demo", False, real_unlocked=True).detail
+    assert not r.mode_and_account_consistent("real", "real", None, False, real_unlocked=True).passed
+    assert "not confirmed to be the real" in r.mode_and_account_consistent("real", "real", "real", None, real_unlocked=True).detail
+    assert not r.mode_and_account_consistent("real", "real", "real", True, real_unlocked=True).passed   # a demo account on a real process
+    assert r.mode_and_account_consistent("demo", "demo", "demo", True, real_unlocked=True).passed is not False        # unlocking changes nothing for demo
+    assert not r.mode_and_account_consistent("real", "demo", "real", False, real_unlocked=True).passed  # intent mode differs

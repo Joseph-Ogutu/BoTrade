@@ -12,7 +12,7 @@ for name in postgres_password redis_password admin_api_token; do
     python3 -c 'import secrets; print(secrets.token_urlsafe(32))' > "$f"
     echo "create $f (random)"
 done
-for name in deriv_pat_demo telegram_bot_token dashboard_password_hash; do
+for name in deriv_pat_demo deriv_pat_real telegram_bot_token dashboard_password_hash; do
     f="secrets/$name"
     if [ -e "$f" ]; then echo "keep   $f"; continue; fi
     : > "$f"

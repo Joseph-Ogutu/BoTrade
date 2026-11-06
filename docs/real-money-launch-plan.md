@@ -9,7 +9,7 @@ account (`REAL_TRADING_IMPLEMENTED = False`, the endpoint allowlist, demo-only O
 - The real account exists and is view only. Its balance is 0.00 USD, so there is nothing to trade.
 - The only trading so far is a coin-flip soak on the demo account: 162 trades, 48.1 percent wins against a 52.6 percent break-even,
   a result that is what chance gives. Strategies have not been tested yet; the forward test (Amendment 5) and Gate 1 are the tests.
-- The real path has not been written, reviewed or exercised.
+- The real path is written and tested against the fake exchange (2026-11-06) but locked, not reviewed by anyone else, and never run against the real account. See runbook 12.12 for the owner steps.
 
 ## Conditions to start (all of them, in this order)
 

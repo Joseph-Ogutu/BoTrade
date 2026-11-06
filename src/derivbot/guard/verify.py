@@ -17,7 +17,7 @@ from derivbot.deriv.session import DerivSession
 from derivbot.execution.executor import ConnInfo
 from derivbot.guard.otp import RealModeRefused
 
-LEGACY_REAL_LOGINID = re.compile(r"^(CR|MF|MLT|MX)\d")        # UNVERIFIED prefixes
+LEGACY_REAL_LOGINID = re.compile(r"^(CR|MF|MLT|MX|ROT)\d")        # UNVERIFIED legacy prefixes, plus ROT: the real account id shape OBSERVED on the new API
 
 
 def assess(endpoint_mode: str | None, loginid: str | None, expected_loginid: str) -> tuple[str | None, bool | None]:

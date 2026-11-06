@@ -77,6 +77,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.bot
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-}
     image: derivbot-bot:local
     container_name: derivbot-migrate
     command: ["alembic", "upgrade", "head"]
@@ -96,6 +98,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.bot
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-}
     image: derivbot-bot:local
     container_name: derivbot-bot
     command: ["python", "-m", "derivbot.app"]
@@ -129,6 +133,58 @@ services:
     # HOST's loopback only. Reach them with an SSH tunnel: ssh -L 8787:127.0.0.1:8787 deploy@<host>, then open /ui.
     ports:
       - "127.0.0.1:8787:8787"
+    networks: [backend, egress]
+    mem_limit: 512m
+    pids_limit: 200
+    stop_grace_period: 30s
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "python", "-m", "derivbot.healthcheck_bot"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # REAL MONEY service (profile "real"). Never started by default, never by `docker compose up` alone. It exists only so that real mode runs in
+  # its own container with its own admin API (loopback port 8788), its own secrets and its own risk file (config/risk.real.json). It still
+  # refuses to start unless the code's build lock is opened by the owner AND the owner-made REAL_TRADING_APPROVED file (REAL_APPROVAL_FILE)
+  # names the deployed commit AND docs/live-readiness.md is signed AND the real credentials exist AND config/risk.real.json is complete
+  # and inside the hard ceilings of guard/real_limits.py. FORWARD_TEST and PIPELINE_SOAK are refused here. The kill switch (Redis key and
+  # flag file) is SHARED with the demo bot: engaging it anywhere stops both.
+  bot-real:
+    <<: *hardening
+    profiles: ["real"]
+    image: derivbot-bot:local
+    container_name: derivbot-bot-real
+    command: ["python", "-m", "derivbot.app"]
+    environment:
+      <<: *db_env
+      REDIS_HOST: redis
+      REDIS_PASSWORD_FILE: /run/secrets/redis_password
+      TRADING_MODE: real
+      ALLOW_REAL_TRADING: "true"
+      DERIV_APP_ID_REAL: ${DERIV_APP_ID_REAL:-}
+      DERIV_ACCOUNT_ID_REAL: ${DERIV_ACCOUNT_ID_REAL:-}
+      DERIV_PAT_REAL_FILE: /run/secrets/deriv_pat_real
+      TELEGRAM_BOT_TOKEN_FILE: /run/secrets/telegram_bot_token
+      ADMIN_API_TOKEN_FILE: /run/secrets/admin_api_token
+      DASHBOARD_PASSWORD_HASH_FILE: /run/secrets/dashboard_password_hash
+      TELEGRAM_ALLOWED_CHAT_IDS: ${TELEGRAM_ALLOWED_CHAT_IDS:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      KILL_SWITCH_PATH: /state/KILL_SWITCH
+      ADMIN_API_BIND: container
+      HEARTBEAT_NAME: bot-real
+      TZ: UTC
+    secrets: [postgres_password, redis_password, deriv_pat_real, telegram_bot_token, admin_api_token, dashboard_password_hash]
+    volumes:
+      - botstate:/state
+      - ${REAL_APPROVAL_FILE:-/dev/null}:/app/REAL_TRADING_APPROVED:ro     # the owner's file; /dev/null (not a file) means "no approval"
+    ports:
+      - "127.0.0.1:8788:8787"
+    tmpfs: [/tmp]
     networks: [backend, egress]
     mem_limit: 512m
     pids_limit: 200
@@ -228,3 +284,5 @@ secrets:
     file: ./secrets/admin_api_token
   dashboard_password_hash:
     file: ./secrets/dashboard_password_hash
+  deriv_pat_real:
+    file: ./secrets/deriv_pat_real

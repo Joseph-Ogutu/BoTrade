@@ -27,33 +27,34 @@ def _iso(v: dt.datetime | None) -> str | None:
     return v.astimezone(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def build_summary(conn: Connection, now: dt.datetime) -> dict[str, Any]:
+def build_summary(conn: Connection, now: dt.datetime, mode: str = "demo") -> dict[str, Any]:
     day_start = now.astimezone(dt.UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-    p = {"s": day_start}
+    p = {"s": day_start, "m": mode}                         # every number below is for the CURRENT mode only: demo and real never mix
 
-    bal = conn.execute(text("SELECT balance, currency, ts FROM balance_snapshots ORDER BY ts DESC, id DESC LIMIT 1")).first()
-    first = conn.execute(text("SELECT balance FROM balance_snapshots WHERE ts >= :s ORDER BY ts, id LIMIT 1"), p).scalar()
+    bal = conn.execute(text("SELECT balance, currency, ts FROM balance_snapshots WHERE mode = :m ORDER BY ts DESC, id DESC LIMIT 1"), p).first()
+    first = conn.execute(text("SELECT balance FROM balance_snapshots WHERE ts >= :s AND mode = :m ORDER BY ts, id LIMIT 1"), p).scalar()
     curve = [_num(r[0]) for r in conn.execute(text(
-        "SELECT balance FROM (SELECT balance, ts, id FROM balance_snapshots ORDER BY ts DESC, id DESC LIMIT :n) t ORDER BY ts, id"),
-        {"n": CURVE_POINTS})]
+        "SELECT balance FROM (SELECT balance, ts, id FROM balance_snapshots WHERE mode = :m ORDER BY ts DESC, id DESC LIMIT :n) t "
+        "ORDER BY ts, id"), {"n": CURVE_POINTS, "m": mode})]
 
     row = conn.execute(text(
         "SELECT count(*), count(*) FILTER (WHERE profit > 0), count(*) FILTER (WHERE profit < 0), COALESCE(sum(profit), 0) "
-        "FROM orders WHERE settled_at >= :s AND profit IS NOT NULL"), p).one()
+        "FROM orders WHERE settled_at >= :s AND profit IS NOT NULL AND mode = :m"), p).one()
     settled, wins, losses, pnl = int(row[0]), int(row[1]), int(row[2]), Decimal(str(row[3]))
     exposure = int(conn.execute(text(
-        "SELECT count(*) FROM order_intents WHERE state IN ('BUY_SENT','BUY_UNKNOWN','OPEN','MANUAL_REVIEW')")).scalar() or 0)
+        "SELECT count(*) FROM order_intents WHERE mode = :m AND state IN ('BUY_SENT','BUY_UNKNOWN','OPEN','MANUAL_REVIEW')"), p).scalar() or 0)
     states = {r[0]: int(r[1]) for r in conn.execute(text(
-        "SELECT state, count(*) FROM order_intents WHERE created_at >= :s GROUP BY 1 ORDER BY 1"), p)}
+        "SELECT state, count(*) FROM order_intents WHERE created_at >= :s AND mode = :m GROUP BY 1 ORDER BY 1"), p)}
 
     trades = [{"time": _iso(r[0]), "symbol": r[1], "type": r[2], "stake": _num(r[3]), "state": r[4], "profit": _num(r[5])}
               for r in conn.execute(text(
                   "SELECT i.created_at, i.symbol, i.contract_type, i.stake, i.state, o.profit FROM order_intents i "
-                  "LEFT JOIN orders o ON o.intent_id = i.id ORDER BY i.created_at DESC LIMIT :n"), {"n": TRADE_LIMIT})]
+                  "LEFT JOIN orders o ON o.intent_id = i.id WHERE i.mode = :m ORDER BY i.created_at DESC LIMIT :n"), {"n": TRADE_LIMIT, "m": mode})]
 
     rejections: dict[str, int] = {}
     for (rule_results,) in conn.execute(text(
-            "SELECT rule_results FROM risk_decisions WHERE approved = false AND decided_at >= :s"), p):
+            "SELECT r.rule_results FROM risk_decisions r JOIN order_intents i ON i.id = r.intent_id "
+            "WHERE r.approved = false AND r.decided_at >= :s AND i.mode = :m"), p):
         for rr in (rule_results if isinstance(rule_results, list) else []):
             if isinstance(rr, dict) and rr.get("passed") is False and isinstance(rr.get("name"), str):
                 rejections[rr["name"]] = rejections.get(rr["name"], 0) + 1
@@ -81,17 +82,17 @@ def build_summary(conn: Connection, now: dt.datetime) -> dict[str, Any]:
 PAGE_SIZES = (10, 15, 25, 50)
 
 
-def trades_page(conn: Connection, page: int, size: int) -> dict[str, Any]:
+def trades_page(conn: Connection, page: int, size: int, mode: str = "demo") -> dict[str, Any]:
     """One page of trades, newest first. The size is clamped to a known set and the page to the existing range, so a hostile
     or stale request can neither ask for the whole table nor fall off the end."""
     size = size if size in PAGE_SIZES else TRADE_LIMIT
-    total = int(conn.execute(text("SELECT count(*) FROM order_intents")).scalar() or 0)
+    total = int(conn.execute(text("SELECT count(*) FROM order_intents WHERE mode = :m"), {"m": mode}).scalar() or 0)
     pages = max(1, -(-total // size))
     page = min(max(1, page), pages)
     rows = conn.execute(text(
         "SELECT i.created_at, i.symbol, i.contract_type, i.stake, i.state, o.profit FROM order_intents i "
-        "LEFT JOIN orders o ON o.intent_id = i.id ORDER BY i.created_at DESC, i.id DESC LIMIT :n OFFSET :o"),
-        {"n": size, "o": (page - 1) * size}).all()
+        "LEFT JOIN orders o ON o.intent_id = i.id WHERE i.mode = :m ORDER BY i.created_at DESC, i.id DESC LIMIT :n OFFSET :o"),
+        {"n": size, "o": (page - 1) * size, "m": mode}).all()
     return {"page": page, "size": size, "total": total, "pages": pages,
             "items": [{"time": _iso(r[0]), "symbol": r[1], "type": r[2], "stake": _num(r[3]), "state": r[4], "profit": _num(r[5])}
                       for r in rows]}

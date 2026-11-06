@@ -69,10 +69,10 @@ class TickFreshness:
 
 class SignalRunner:
     def __init__(self, approval: Approval | None, approvals: StrategyApprovals, strategies: dict[str, Strategy],
-                 symbol: str, account_id: str, submit: Callable[[IntentRequest], Any]) -> None:
+                 symbol: str, account_id: str, submit: Callable[[IntentRequest], Any], mode: str = "demo") -> None:
         if not isinstance(approval, Approval):
             raise RealDataNotApproved("the signal runner uses live ticks and needs the owner's real-data approval")
-        self._approvals, self._symbol, self._account, self._submit = approvals, symbol, account_id, submit
+        self._approvals, self._symbol, self._account, self._submit, self._mode = approvals, symbol, account_id, submit, mode
         self._strategies = {sid: s for sid, s in strategies.items() if approvals.is_approved(s.id, s.version)}
         self._q: list[float] = []
         self._d: list[int] = []
@@ -100,7 +100,7 @@ class SignalRunner:
                 continue
             req = IntentRequest(idempotency_key=f"{strat.id}:{strat.version}:{self._symbol}:{tick.epoch}",
                                 symbol=self._symbol, contract_type=sig.contract_type, strategy_id=strat.id,
-                                strategy_version=strat.version, mode="demo", account_id=self._account)
+                                strategy_version=strat.version, mode=self._mode, account_id=self._account)
             out.append(req)
             self.submitted += 1
             self._submit(req)
