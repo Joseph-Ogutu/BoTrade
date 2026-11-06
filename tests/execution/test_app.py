@@ -30,7 +30,7 @@ def free_port():
 
 
 def make_root(tmp_path, risk=None):
-    (tmp_path / "config").mkdir()
+    (tmp_path / "config").mkdir(parents=True, exist_ok=True)
     (tmp_path / "config" / "risk.json").write_text(json.dumps(risk or EXEC_CFG))
     (tmp_path / "config" / "strategies.json").write_text('{"approved": {}}')
     return tmp_path
@@ -144,3 +144,64 @@ async def test_without_demo_credentials_the_service_still_runs_its_safety_parts_
     app = appmod.build(s, root=make_root(tmp_path), kv=MemoryStore(), transport=FakeTransport(), flag_path=tmp_path / "KILL")
     assert app.supervisor is None and any("no demo credentials" in n for n in app.notes)
     app.engine.dispose()
+
+
+# ---------------------------------------------------------------- forward test wiring (Amendment 5)
+
+def forward_root(tmp_path, approved=True):
+    import shutil
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parents[2] / "docs"
+    (tmp_path / "docs").mkdir(parents=True, exist_ok=True)
+    for name in ("kill-criterion.md", "forward_test_lock.json"):
+        shutil.copy(src / name, tmp_path / "docs" / name)
+    line = "LIVE_DEMO_FORWARD_TEST_APPROVED: 2026-11-06 by Joseph (owner) amendment=5\n" if approved else "no approval here\n"
+    (tmp_path / "docs" / "approvals.md").write_text(line)
+    return make_root(tmp_path)
+
+
+async def test_forward_test_is_off_unless_asked_for_and_off_without_the_owner_line(fresh_db_url, tmp_path, monkeypatch):
+    app = appmod.build(settings_for(fresh_db_url), root=forward_root(tmp_path / "a"), kv=MemoryStore(), transport=FakeTransport())
+    assert app.forward is None and not any("FORWARD TEST" in n for n in app.notes)                  # FORWARD_TEST not set
+    monkeypatch.setenv("FORWARD_TEST", "1")
+    app = appmod.build(settings_for(fresh_db_url), root=forward_root(tmp_path / "b", approved=False), kv=MemoryStore(), transport=FakeTransport())
+    assert app.forward is None and any("forward test OFF" in n and "no LIVE_DEMO_FORWARD_TEST_APPROVED" in n for n in app.notes)
+    assert not app.executor.d.risk.approvals.is_approved("ema_trend", "1")                          # nothing was approved either
+
+
+async def test_forward_test_on_registers_fourteen_variants_and_approves_only_the_registered_strategies_in_memory(fresh_db_url, tmp_path, monkeypatch):
+    monkeypatch.setenv("FORWARD_TEST", "1")
+    monkeypatch.setenv("FORWARD_COOLDOWN_S", "3600")
+    root = forward_root(tmp_path)
+    app = appmod.build(settings_for(fresh_db_url), root=root, kv=MemoryStore(), transport=FakeTransport())
+    assert app.forward is not None and any("FORWARD TEST ON" in n for n in app.notes) and app.forward.cooldown_s == 3600
+    keys = [v.key for v in app.forward.ledger.variants]
+    assert len([k for k in keys if not k.startswith("control_random")]) == 14 and len(keys) == 16
+    from derivbot.signals.strategies import default_strategies
+    for s in default_strategies().values():
+        assert app.executor.d.risk.approvals.is_approved(s.id, s.version)
+    assert not app.executor.d.risk.approvals.is_approved("pipeline_soak", "1")
+    assert json.loads((root / "config" / "strategies.json").read_text()) == {"approved": {}}        # the owner's file is never touched
+    assert app.status()["signals"] == "forward"
+
+
+async def test_live_ticks_reach_the_ledger_and_the_summary_shows_counts_only(fresh_db_url, tmp_path, monkeypatch):
+    monkeypatch.setenv("FORWARD_TEST", "1")
+    root = forward_root(tmp_path)
+    async with FakeDeriv(balance=2500.0) as fake:
+        transport, port = FakeTransport(), free_port()
+        app = appmod.build(settings_for(fresh_db_url), root=root, kv=MemoryStore(), transport=transport,
+                           policy=EndpointPolicy("ws", "127.0.0.1", fake.port), otp_provider=FakeOtp(fake), flag_path=tmp_path / "KILL")
+        halt, task = await start(app, port)
+        for _ in range(200):
+            if app.forward.ledger._abs.get("1HZ100V", -1) >= 3 or app.forward.ledger.resets:
+                break
+            await asyncio.sleep(0.05)
+        assert app.forward.ledger._abs["1HZ100V"] >= 3 or app.forward.ledger.resets >= 1              # ticks arrived through the session
+        async with httpx.AsyncClient() as client:
+            body = (await client.get(f"http://127.0.0.1:{port}/api/summary", headers={"Authorization": f"Bearer {TOKEN}"})).json()
+        f = body["forward"]
+        assert f["n_eval"] == 7800 and len(f["variants"]) == 16
+        assert all(set(v) == {"key", "control", "completed", "discarded"} for v in f["variants"])       # counts only: no outcome fields
+        await stop(halt, task)

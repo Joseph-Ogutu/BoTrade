@@ -157,6 +157,12 @@ input{width:100%;padding:9px 12px}
 .list .n{color:var(--muted);font-variant-numeric:tabular-nums}
 .list .t{display:block;font-size:.74rem;color:var(--faint)}
 .list .empty{padding:2px 0;text-align:left;width:100%}
+.note{margin:0 0 10px;color:var(--muted);font-size:.8rem}
+.fwd{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.fwd li{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:.8rem}
+.fwd .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fwd .ct{color:var(--muted);font-variant-numeric:tabular-nums}
+.fwd progress{grid-column:1 / -1;width:100%;height:6px;border:0;border-radius:4px;accent-color:var(--accent);background:var(--surface2)}
 .danger-zone{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;border-color:color-mix(in srgb,var(--down) 35%,var(--line))}
 .danger-zone p{margin:0;color:var(--muted);font-size:.84rem;flex:1;min-width:220px}
 .danger-zone code{font-family:var(--mono);font-size:.8rem;background:var(--surface2);padding:1px 6px;border-radius:5px}
@@ -290,6 +296,8 @@ dialog form{display:grid;gap:12px} dialog h1{margin:0;font-size:1.1rem} dialog p
             <li><span class="k">Accuracy audit</span><span class="chip" id="sAudit">-</span></li>
           </ul>
         </article>
+        <article class="card hidden" id="fwdCard"><h2><svg class="ic sm"><use href="#i-target"/></svg>Forward test <span class="chip info">counts only</span></h2>
+          <p class="note" id="fwdNote"></p><ul class="fwd" id="fwd"></ul></article>
         <article class="card"><h2>Risk rejections today</h2><ul class="list" id="rej"></ul></article>
         <article class="card"><h2>Kill switch events</h2><ul class="list" id="ev"></ul></article>
         <article class="card danger-zone">
@@ -449,7 +457,8 @@ function render(d){
   if(!d.recent_events||!d.recent_events.length)ev.appendChild(el("li","empty","No events"));
   else d.recent_events.forEach(function(x){var r=el("li"),w=el("div");w.appendChild(el("span","",x.text));w.appendChild(el("span","t",ago(x.time)));r.appendChild(w);ev.appendChild(r)});
 
-  chip($("sSig"),d.signals==="on"?"ok":(d.signals==="soak"?"warn":"info"),d.signals==="on"?"running":(d.signals==="soak"?"pipeline soak":"off"),false);
+  chip($("sSig"),d.signals==="on"||d.signals==="forward"?"ok":(d.signals==="soak"?"warn":"info"),d.signals==="on"?"running":(d.signals==="forward"?"forward test":(d.signals==="soak"?"pipeline soak":"off")),false);
+  renderForward(d.forward);
   var au=d.audit;
   if(!au)chip($("sAudit"),"info","pending",false);
   else if(au.passed)chip($("sAudit"),"ok","passed "+ago(au.at),true);
@@ -460,6 +469,16 @@ function render(d){
   if(d.last_session_error)msg.push("Last session problem: "+d.last_session_error);
   if(msg.length){bn.appendChild(icon("i-alert"));bn.appendChild(el("span","",msg.join(" ")))}
   bn.classList.toggle("show",msg.length>0);bn.classList.toggle("bad",bad||!!ks.engaged);
+}
+function renderForward(f){
+  var card=$("fwdCard");card.classList.toggle("hidden",!f);if(!f)return;
+  var ul=$("fwd");clear(ul);
+  $("fwdNote").textContent="Each variant is judged once, at "+f.n_eval.toLocaleString()+" completed contracts. No results are shown before then (Amendment 5). Live demo bets so far: "+f.live_orders+".";
+  f.variants.forEach(function(v){
+    var li2=el("li"),nm=el("span","nm",(v.control?"control ":"")+v.key.replace("control_random:","")),ct=el("span","ct",v.completed.toLocaleString()+" / "+f.n_eval.toLocaleString()+(v.discarded?" ("+v.discarded+" discarded)":""));
+    var pr=document.createElement("progress");pr.max=f.n_eval;pr.value=Math.min(v.completed,f.n_eval);
+    li2.appendChild(nm);li2.appendChild(ct);li2.appendChild(pr);ul.appendChild(li2);
+  });
 }
 function tick(){
   api("/api/summary").then(function(r){

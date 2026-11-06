@@ -116,6 +116,13 @@ def losses_per_day_within_limit(losses_today: int, max_losses_per_day: int | Non
     return RuleResult("losses_per_day_within_limit", losses_today < max_losses_per_day, str(losses_today), f"< {max_losses_per_day}")
 
 
+def consecutive_wins_today_within_limit(win_streak_today: int, max_wins: int | None) -> RuleResult:
+    """Owner rule: after N wins in a row today, stop for the rest of the risk day. None means no such stop is set."""
+    if max_wins is None:
+        return RuleResult("consecutive_wins_today_within_limit", True, str(win_streak_today), "no win stop set")
+    return RuleResult("consecutive_wins_today_within_limit", win_streak_today < max_wins, str(win_streak_today), f"< {max_wins}")
+
+
 # 6
 def stake_within_bounds(result: StakeResult) -> RuleResult:
     observed = f"{_s(result.stake)} ({result.reason})"

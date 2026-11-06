@@ -121,3 +121,18 @@ def test_trades_and_losses_since_the_risk_day_began(conn):
         order(conn, "SETTLED", p, when)
     order(conn, "OPEN", D("-9"), day + dt.timedelta(hours=6))                   # not settled: ignored
     assert state.losses_since(conn, day) == 2                                   # yesterday's loss, the win and the open one do not count
+
+
+def test_consecutive_wins_today_stop_at_the_first_non_win_and_ignore_yesterday(conn):
+    conn.execute(text("DELETE FROM orders"))
+    day = NOW.replace(hour=0, minute=0, second=0, microsecond=0)
+    for k, p in enumerate([D("0.9"), D("0.9"), D("0.9")]):                       # yesterday: a streak that must not count
+        order(conn, "SETTLED", p, day - dt.timedelta(hours=3 - k))
+    assert state.consecutive_wins_since(conn, day) == 0
+    for k, p in enumerate([D("-1"), D("0.9"), D("0.9"), D("0.00"), D("0.9"), D("0.9")]):   # today, oldest first
+        order(conn, "SETTLED", p, day + dt.timedelta(hours=1 + k))
+    assert state.consecutive_wins_since(conn, day) == 2                          # the zero-profit result is not a win
+    order(conn, "SETTLED", D("0.9"), day + dt.timedelta(hours=9))
+    assert state.consecutive_wins_since(conn, day) == 3
+    order(conn, "SETTLED", D("-1"), day + dt.timedelta(hours=10))                # a loss resets the streak
+    assert state.consecutive_wins_since(conn, day) == 0

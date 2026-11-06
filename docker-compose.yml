@@ -113,6 +113,8 @@ services:
       DERIV_ACCOUNT_ID_DEMO: ${DERIV_ACCOUNT_ID_DEMO:-}
       TELEGRAM_ALLOWED_CHAT_IDS: ${TELEGRAM_ALLOWED_CHAT_IDS:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      FORWARD_TEST: ${FORWARD_TEST:-0}            # 1 = live demo forward test of the registered strategies (Amendment 5)
+      FORWARD_COOLDOWN_S: ${FORWARD_COOLDOWN_S:-3600}
       PIPELINE_SOAK: ${PIPELINE_SOAK:-0}          # 1 = random demo trades to exercise the machinery (NOT a strategy)
       SOAK_INTERVAL_S: ${SOAK_INTERVAL_S:-300}
       AUDIT_INTERVAL_S: ${AUDIT_INTERVAL_S:-21600}   # accuracy audit every 6 hours, verdict shown on the dashboard

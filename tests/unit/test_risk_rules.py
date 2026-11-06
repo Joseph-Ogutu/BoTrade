@@ -107,6 +107,13 @@ def test_daily_trade_cap_every_branch():
     assert none.passed and none.limit == "no daily cap set"
 
 
+def test_daily_win_streak_stop_every_branch():
+    assert r.consecutive_wins_today_within_limit(2, 3).passed and not r.consecutive_wins_today_within_limit(3, 3).passed
+    assert not r.consecutive_wins_today_within_limit(9, 3).passed
+    none = r.consecutive_wins_today_within_limit(100, None)
+    assert none.passed and none.limit == "no win stop set"
+
+
 def test_daily_loss_count_stop_every_branch():
     assert r.losses_per_day_within_limit(2, 3).passed and not r.losses_per_day_within_limit(3, 3).passed
     assert not r.losses_per_day_within_limit(7, 3).passed

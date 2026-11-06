@@ -64,6 +64,19 @@ def losses_since(conn: Connection, since: dt.datetime) -> int:
                             {"s": since}).scalar_one())
 
 
+def consecutive_wins_since(conn: Connection, since: dt.datetime, limit: int = 500) -> int:
+    """Newest settled bets of the risk day first; counts strictly positive profits until the first result that is not a win."""
+    rows = conn.execute(text("SELECT profit FROM orders WHERE state IN ('SETTLED', 'SOLD') AND profit IS NOT NULL AND settled_at >= :s "
+                             "ORDER BY settled_at DESC, id DESC LIMIT :n"), {"s": since, "n": limit}).all()
+    n = 0
+    for (profit,) in rows:
+        if Decimal(profit) > 0:
+            n += 1
+        else:
+            break
+    return n
+
+
 def identical_recent_or_in_flight(conn: Connection, intent_id: str, symbol: str, contract_type: str, account_id: str,
                                   window_s: int, now: dt.datetime) -> bool:
     row = conn.execute(text(

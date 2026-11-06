@@ -25,7 +25,7 @@ def ctx(**kw):
 def test_a_clean_context_is_approved_with_a_stake():
     d = ENGINE.evaluate(ctx())
     assert d.approved and d.stake == D("5.00") and d.failed == []
-    assert len(d.results) == 13
+    assert len(d.results) == 14
 
 
 def test_every_rule_is_recorded_even_when_several_fail():
@@ -33,7 +33,7 @@ def test_every_rule_is_recorded_even_when_several_fail():
     assert not d.approved and d.stake is None
     assert set(d.failed) == {"kill_switch_clear", "market_data_fresh", "open_positions_within_limit",
                              "consecutive_losses_within_limit"}
-    assert len(d.rule_results_json()) == 13
+    assert len(d.rule_results_json()) == 14
 
 
 @pytest.mark.parametrize("override,failing", [
@@ -87,7 +87,7 @@ def test_proposal_check_rule_8():
     assert not bad_payout and not res[1].passed
 
 
-OWNER_DAY = parse_risk_config({**VALID, "max_trades_per_day": 5, "max_losses_per_day": 3})
+OWNER_DAY = parse_risk_config({**VALID, "max_trades_per_day": 5, "max_losses_per_day": 3, "max_consecutive_wins_per_day": 3})
 
 
 def test_the_owner_day_rules_are_off_unless_set_and_on_when_set():
@@ -96,6 +96,8 @@ def test_the_owner_day_rules_are_off_unless_set_and_on_when_set():
     assert eng.evaluate(ctx(trades_today=4, losses_today=2)).approved
     assert eng.evaluate(ctx(trades_today=5)).failed == ["trades_per_day_within_limit"]
     assert eng.evaluate(ctx(losses_today=3)).failed == ["losses_per_day_within_limit"]
+    assert eng.evaluate(ctx(win_streak_today=2)).approved
+    assert eng.evaluate(ctx(win_streak_today=3)).failed == ["consecutive_wins_today_within_limit"]
 
 
 def test_both_day_rules_are_reported_together_when_both_trip():

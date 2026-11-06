@@ -144,6 +144,7 @@ class Executor:
                 "trades": risk_state.trades_in_last_hour(conn, now),
                 "trades_today": risk_state.trades_since(conn, start),
                 "losses_today": risk_state.losses_since(conn, start),
+                "win_streak": risk_state.consecutive_wins_since(conn, start),
                 "dup": risk_state.identical_recent_or_in_flight(conn, intent_id, req.symbol, req.contract_type,
                                                                   req.account_id, cfg.recent_duplicate_window_s, now),
             }
@@ -158,7 +159,7 @@ class Executor:
             balance=balance, api_min_stake=api_min, open_positions=s["open_positions"], realized_pnl_today=s["pnl"],
             start_of_day_balance=s["start_balance"], consecutive_losses=s["losses"], trades_last_hour=s["trades"],
             idempotency_key_used=False, identical_recent_or_in_flight=s["dup"],
-            trades_today=s["trades_today"], losses_today=s["losses_today"],
+            trades_today=s["trades_today"], losses_today=s["losses_today"], win_streak_today=s["win_streak"],
         )
 
     async def _submit(self, req: IntentRequest, duration: int, unit: str, wait: bool, settle_timeout: float) -> ExecutionResult:

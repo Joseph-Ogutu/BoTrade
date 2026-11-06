@@ -103,6 +103,7 @@ class App:
     notes: list[str] = field(default_factory=list)
     soak: Any = None
     audit: Any = None
+    forward: Any = None
 
     def status(self) -> dict[str, Any]:
         info = self.verifier.get_info()
@@ -113,7 +114,7 @@ class App:
                 "mode": "demo", "session_connected": bool(self.supervisor and self.supervisor.session),
                 "connects": self.supervisor.connects if self.supervisor else 0,
                 "last_session_error": self.supervisor.last_error if self.supervisor else None,
-                "reconcile_age_s": self.reconciler.age_s(), "signals": "on" if self.signal_runner else ("soak" if self.soak else "off"),
+                "reconcile_age_s": self.reconciler.age_s(), "signals": "on" if self.signal_runner else ("forward" if self.forward else ("soak" if self.soak else "off")),
                 "notifier": self.notifier.status(), "notes": self.notes}
 
 
@@ -122,6 +123,17 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
     notes: list[str] = []
     risk_cfg = load_risk_config(root / "config" / "risk.json")           # raises RiskConfigError naming every unset value
     approvals = load_strategy_approvals(root / "config" / "strategies.json")
+    forward_approval = None
+    if os.environ.get("FORWARD_TEST") == "1":
+        from derivbot.config.risk import StrategyApprovals as _Approvals
+        from derivbot.forward.permit import ForwardTestNotApproved, require_forward_test_approval
+
+        try:
+            forward_approval = require_forward_test_approval(root, default_strategies())
+            approvals = _Approvals(approved={**approvals.approved, **{s.id: s.version for s in default_strategies().values()}})
+            notes.append("FORWARD TEST ON (Amendment 5): shadow ledger for 14 registered variants plus controls; demo bets limited by the owner's daily rules")
+        except ForwardTestNotApproved as exc:
+            notes.append(f"forward test OFF: {exc}")
     soak_enabled = os.environ.get("PIPELINE_SOAK") == "1"
     if soak_enabled:                      # in memory only: config/strategies.json is the owner's file and is never touched
         from derivbot.config.risk import StrategyApprovals
@@ -172,6 +184,14 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
         api_min_stake=min_stake.get,         # from proposal validation_params on every connect; unknown means no trade
         account_id=settings.deriv_account_id_demo or "", on_alert=notifier.submit)
     executor = Executor(deps)
+    forward = None
+    if forward_approval is not None:
+        from derivbot.forward.runner import ForwardRunner
+
+        cooldown = os.environ.get("FORWARD_COOLDOWN_S")
+        forward = ForwardRunner(forward_approval, default_strategies(), list(SYMBOLS), engine, settings.deriv_account_id_demo or "",
+                                executor.submit, notifier.submit, cooldown_s=float(cooldown) if cooldown else None)
+        fresh.add_sink(forward.on_tick)
     reconciler = Reconciler(executor, interval_s=60.0)
     reconciler_box["r"] = reconciler
 
@@ -189,7 +209,8 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
             return s
 
         supervisor = SessionSupervisor(factory, on_connected=[verifier.on_connected, reconciler.on_connected, min_stake.on_connected, fresh.on_connected],
-                                       on_disconnected=[verifier.on_disconnected, min_stake.on_disconnected])
+                                       on_disconnected=[verifier.on_disconnected, min_stake.on_disconnected,
+                                                     *([forward.on_disconnected] if forward else [])])
         sup_box["s"] = supervisor
     else:
         notes.append("no demo credentials: the Deriv session is not started")
@@ -240,6 +261,15 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
         from derivbot.audit.loop import last_verdict
 
         out["audit"] = last_verdict(kv)
+        if forward is not None:
+            from derivbot.forward.store import counts
+
+            with engine.connect() as conn:
+                c = counts(conn)
+            reg = forward.approval.registration
+            out["forward"] = {"n_eval": reg["n_eval"], "live_orders": forward.live_orders, "resets": forward.ledger.resets,
+                              "variants": [{"key": v.key, "control": v.strategy is None, **c.get(v.key, {"completed": 0, "discarded": 0})}
+                                           for v in forward.ledger.variants]}
         return out
 
     hash_file = Path(os.environ.get("DASHBOARD_PASSWORD_HASH_FILE", ""))
@@ -265,7 +295,7 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
     hb = Heartbeater(HeartbeatKV(kv, ttl_s=60), "bot", notifier, lambda: {"signals": "on" if runner else "off"}, interval_s=10)
     reporter = DailyReporter(notifier, engine, kv, hour_utc=risk_cfg.daily_reset_utc_hour)
     app = App(settings, engine, kv, ks, notifier, executor, reconciler, supervisor, verifier, fresh, hb, reporter, api, poller, runner, notes,
-              soak=soak, audit=audit_loop)
+              soak=soak, audit=audit_loop, forward=forward)
     app_box["a"] = app
     return app
 
@@ -298,6 +328,8 @@ async def run(app: App, halt: asyncio.Event, api_port: int = 8787) -> None:
         tasks.append(asyncio.create_task(app.soak.run(halt), name="soak"))
     if app.audit:
         tasks.append(asyncio.create_task(app.audit.run(halt), name="audit"))
+    if app.forward:
+        tasks.append(asyncio.create_task(app.forward.run(halt), name="forward"))
     if app.poller:
         tasks.append(asyncio.create_task(app.poller.run(halt), name="telegram"))
     for note in app.notes:

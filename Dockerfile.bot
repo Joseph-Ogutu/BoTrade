@@ -20,6 +20,8 @@ COPY migrations ./migrations
 COPY alembic.ini ./
 COPY docs/approvals.md ./docs/approvals.md
 COPY docs/live-readiness.md ./docs/live-readiness.md
+COPY docs/kill-criterion.md ./docs/kill-criterion.md
+COPY docs/forward_test_lock.json ./docs/forward_test_lock.json
 
 USER bot
 CMD ["python", "-m", "derivbot.app"]

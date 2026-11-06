@@ -6,6 +6,8 @@ data
 docs/*
 !docs/approvals.md
 !docs/live-readiness.md
+!docs/kill-criterion.md
+!docs/forward_test_lock.json
 secrets
 dev-local
 REAL_TRADING_APPROVED

@@ -58,7 +58,7 @@ async def test_happy_path_ends_settled_with_a_full_audit_trail(env):
     audit = {x[0] for x in env.q("SELECT event_type FROM audit_events WHERE ref_id = :i", i=r.intent_id)}
     assert {"RISK", "RISK_PROPOSAL", "BUY_SENT", "BUY_CONFIRMED", "SETTLED"} <= audit
     rd = env.q("SELECT approved, jsonb_array_length(rule_results) FROM risk_decisions WHERE intent_id = :i", i=r.intent_id)[0]
-    assert tuple(rd) == (True, 13)
+    assert tuple(rd) == (True, 14)
     check_invariants(env)
 
 
@@ -417,3 +417,16 @@ async def test_the_day_counters_reset_at_the_daily_boundary(env):
     env.executor.d.clock = lambda: base + dt.timedelta(days=1)         # the next UTC day: the cap is fresh
     again = await env.executor.submit(env.intent("n3", symbol="1HZ100V", contract_type="PUT"))
     assert again.state.value == "SETTLED", again
+
+
+async def test_three_wins_in_a_row_stop_trading_for_the_rest_of_the_day(env):
+    cfg = env.deps.risk.cfg.model_copy(update={"max_consecutive_wins_per_day": 3, "max_trades_per_hour": 100, "recent_duplicate_window_s": 1})
+    env.deps.risk = _RE(cfg, env.deps.risk.approvals)
+    env.executor.d.risk = env.deps.risk
+    for k, (sym, typ) in enumerate([("1HZ100V", "CALL"), ("1HZ100V", "PUT"), ("R_100", "CALL")]):
+        res = await env.executor.submit(env.intent(f"w{k}", symbol=sym, contract_type=typ))
+        assert res.state.value == "SETTLED" and res.profit > 0, res                 # the fake exchange settles these as wins
+    fourth = await env.executor.submit(env.intent("w3", symbol="R_100", contract_type="PUT"))
+    assert fourth.state.value == "RISK_REJECTED" and env.fake.buys_received == 3
+    failed = env.q("SELECT rule_results FROM risk_decisions ORDER BY id DESC LIMIT 1")[0][0]
+    assert [x["name"] for x in failed if not x["passed"]] == ["consecutive_wins_today_within_limit"]
