@@ -340,3 +340,5 @@ docker compose --env-file vm.env -f docker-compose.yml -f docker-compose.lowmem.
 
 `promote` adds a strategy to `config/strategies.json` only when a recorded, non-void PASS exists for one of its variants (Holm corrected, Wilson bound, positive expectancy, all blocks positive, as registered). It never evaluates, never removes an approval. The real bot reads the file at start, so restart `bot-real` after an approval. This does not replace the other conditions: the signed checklist, the Gate 1 record and the approval file still gate real orders.
 
+Installed on the VM on 2026-11-06 as a crontab entry of the `deploy` user (no sudo needed): `10 0 * * * /opt/derivbot/scripts/forward_daily.sh >> /home/deploy/forward_daily.log 2>&1`. It runs the two commands above daily at 00:10 UTC, using a one-off container so the host file `config/strategies.json` is updated, and restarts `bot-real` if it is running and the approvals changed. `bot-real` mounts that host file, so an approval needs no rebuild. The systemd units in `deploy/derivbot-forward.*` are the alternative if you prefer a timer (needs sudo).
+
