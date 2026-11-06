@@ -326,3 +326,86 @@ Accordingly this amendment supersedes ONE sentence of A1.7, "Strategy work (a hy
   "variant_index": "docs/hypotheses/INDEX.md"
 }
 ```
+
+
+---
+
+AMENDMENT-5-MARKER: kill-criterion amendment 5
+
+## Amendment 5: live demo forward test of the registered strategies before Gate 1
+
+Status: made on 2026-11-06 (UTC), BEFORE any registered strategy has run on a live tick and before any forward-test outcome exists. It does not change H0, the symbol tiers, the four tests, alpha, Holm, the family sizes of Amendment 1, the minimum samples, the data cutoff, the Gate 1 run date, or the harness (src/derivbot/gate1 is unchanged by this amendment). Amendments 1 to 4 above are unedited; this amendment only adds text after them.
+
+### A5.1 What had been observed since Amendment 4
+
+Amendment 4 was committed 2026-10-31T23:49:06Z. Since then no registered strategy has run on any live or collected tick. The work in that period: the demo credentials, a pipeline soak test (a coin flip that reads no prices and no signals, 118 demo trades, results unusable as strategy evidence and not used as such), and an accuracy audit that compares recorded trades with the exchange's records. Three facts from that work are relevant here and are recorded now so they cannot be claimed later as a reason for a rule:
+
+1. Observed payout ratio r = 0.9009 on stakes of 25.00, 100.00 and 200.00 (0.9011 at a stake of 1.00; 0.8857 at the minimum stake of 0.35).
+2. On 118 real contracts, the entry spot is the first tick after the purchase and the exit spot is the tick 5 ticks after the entry, and the recorded win or loss matched the strict-comparison rule on all of them (a tie was never observed). This confirms two assumptions that derivbot.backtest.engine had marked UNVERIFIED (settle tick = entry + duration; CALL wins only if exit is strictly above entry). The tie rule itself is still unobserved.
+3. The exchange rate-limits contract lookups; that affects the audit, not the strategies.
+
+### A5.2 What this amendment changes
+
+The owner instructed in chat on 2026-11-06 "Let's just go to B", after being told that B means running the registered strategies on the live demo feed now, that a clear answer needs roughly 4,000 to 8,000 completed trades per variant, and that Gate 1 stays scheduled and independent. This amendment supersedes the A4.3 bullet that forbids running strategies before Gate 1 reports, for ONE narrow activity only: running the registered default strategies on the LIVE tick stream of the demo connection, in memory, to produce the forward ledger of A5.4 and demo trades.
+
+It does NOT permit: reading the stored or collected ticks, any backtest on them, any digit statistic, or any use of the Gate 1 holdout. derivbot.backtest.permit and the Gate 1 loader stay refused exactly as before. It does not authorise real-money trading.
+
+### A5.3 Variants (frozen)
+
+The seven strategies returned by derivbot.signals.strategies.default_strategies(), at their committed default parameters and versions (all version 1): ema_trend, rsi_bollinger, vol_breakout, regime_ema_trend, regime_vol_breakout, regime_rsi_bollinger, adaptive_selector, each on the two confirmatory symbols 1HZ100V and R_100, 5-tick CALL or PUT. That is K = 14 variants. A control variant, control_random, on each symbol (a coin flip with no price input) is run alongside and is NOT counted in K.
+
+Parameters are fixed by convention as registered in docs/hypotheses/. Any change to a strategy's code or parameters creates a NEW variant: K increases, its counter starts at zero, and the old variant's record stays.
+
+### A5.4 The forward ledger (shadow outcomes), exact protocol
+
+- Decision at tick t uses only ticks up to t. Entry spot is the quote of tick t+1. Exit spot is the quote of tick t+6 (5 ticks after entry). CALL wins if and only if exit is strictly above entry, PUT if and only if strictly below; a tie loses.
+- A variant has at most one open shadow contract at a time. The next decision is at the exit tick or later. This is identical to derivbot.backtest.engine.run_backtest, and a test feeds the same simulated series to both and requires identical contracts.
+- A shadow contract is DISCARDED, and counted as discarded, if any two consecutive ticks between t and t+6 differ in epoch by more than the nominal interval (1 second for 1HZ100V, 2 seconds for R_100, as in A2.2), or if the connection drops or the service restarts while it is open. Nothing else is dropped. No contract is added or removed after its outcome is known.
+- Completed outcomes are stored append-only (table shadow_outcomes; updates and deletes are refused by the database).
+
+### A5.5 The primary analysis (fixed now)
+
+- r = 0.9009 (A5.1), so p_be = 1 / (1 + r) = 0.52607. Sensitivity uses r - 0.05 = 0.8509.
+- n_min with delta = 0.02, power 0.80, alpha = 0.05 / 14, computed by derivbot.stats.edge.required_n, is 7,764. Each variant is evaluated EXACTLY ONCE, when it has N_EVAL = 7,800 completed shadow contracts. A variant that has not reached N_EVAL by 2026-12-31 is reported as inconclusive because of insufficient data. Nothing is decided on fewer contracts.
+- A variant passes the forward test only if ALL hold, which are conditions 1, 2, 3 and 5 of section 2 of version 1 applied to the ledger: (1) n >= N_EVAL; (2) the one-sided Wilson lower bound of the win rate at confidence 1 - 0.05/14 is strictly above p_be AND the exact one-sided binomial test of H0: p <= p_be rejects at the Holm-adjusted level over the family of 14 (variants below N_EVAL enter the family with p = 1, so the family size is always 14); (3) expectancy per unit stake E = p_hat * r - (1 - p_hat) is positive at r = 0.9009 and at r - 0.05; (5) splitting the ledger in time order into two blocks of equal contract count, each block has E > 0 (each block holds at least N_EVAL / 4 contracts by construction). Condition 4 (drawdown) is not evaluated on a stakeless ledger and is reported for information only.
+- No interim results. Before a variant reaches N_EVAL, only counts (completed, discarded) may be shown or discussed, and the reporting code refuses to print anything else. Peeking, early stopping, dropping a variant, or choosing among variants by their outcomes is forbidden.
+- Control: if either control_random variant rejects H0 at its own evaluation, the harness is considered faulty and the whole evaluation is void until the fault is found and recorded.
+- Meaning of a pass: a candidate edge on forward demo data only. It authorises nothing about real money. It would still need replication on a second forward window of equal size, consistency with the Gate 1 result, the independent reviews, and the owner's readiness checklist. Version 1 section 2 still applies in full to the locked holdout.
+
+### A5.6 Demo trading is separate from the statistics
+
+The same strategies also place demo trades through the normal risk engine and executor. A single global cooldown of 180 seconds applies to live orders: the first eligible signal after the cooldown is taken, with no ranking and no preference for any variant. Executed demo trades are NOT used to select, tune, approve or reject any variant; the statistics come only from the ledger. The coin-flip soak is switched off while this runs. Stake limits are the demo values already in config/risk.json.
+
+### A5.7 Overlap with Gate 1
+
+The forward window starts on 2026-11-06 and therefore overlaps the Gate 1 holdout window (H0 to the 2026-11-15 cutoff): they are the same underlying market. The two results are not independent evidence and neither may be used to tune or reinterpret the other. The Gate 1 harness, its data cutoff and its run date are unchanged.
+
+### A5.8 What stays exactly as before
+
+Real trading stays locked. No LLM is in the trading loop. No martingale. Amendments stay append-only. Strategy code and the registered default parameters are not modified by this amendment.
+
+```json GATE1-REGISTRATION-A5
+{
+  "amendment": 5,
+  "forward_test": {
+    "strategies": ["ema_trend", "rsi_bollinger", "vol_breakout", "regime_ema_trend", "regime_vol_breakout", "regime_rsi_bollinger", "adaptive_selector"],
+    "symbols": ["1HZ100V", "R_100"],
+    "controls": ["control_random"],
+    "family_size_k": 14,
+    "duration_ticks": 5,
+    "entry_offset_ticks": 1,
+    "ratio_r": 0.9009,
+    "p_break_even": 0.52607,
+    "n_min": 7764,
+    "n_eval": 7800,
+    "alpha_family": 0.05,
+    "delta": 0.02,
+    "power": 0.8,
+    "wilson_confidence": 0.99642857,
+    "sensitivity_r_minus": 0.05,
+    "live_order_cooldown_s": 180,
+    "deadline_utc": "2026-12-31",
+    "ledger_table": "shadow_outcomes"
+  }
+}
+```

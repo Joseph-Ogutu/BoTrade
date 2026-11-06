@@ -33,7 +33,7 @@ def test_original_v1_text_is_preserved_unedited():
 
 def test_registration_block_is_single_and_consistent_with_the_text():
     reg = load_registration()
-    assert reg["amendments"] == [1, 2, 3, 4]
+    assert reg["amendments"] == [1, 2, 3, 4, 5]
     conf, expl, tests = reg["confirmatory_symbols"], reg["exploratory_symbols"], reg["tests"]
     assert conf == ["1HZ100V", "R_100"]
     assert len(tests) == 4 and len(set(tests)) == 4
@@ -173,3 +173,27 @@ def test_amendment_4_is_append_only_after_amendment_3_and_does_not_touch_the_reg
     assert reg["strategy_code_before_gate1"] is True and reg["hypotheses_dir"] == "docs/hypotheses"
     assert reg["data_cutoff_epoch"] == 1794700800 and reg["confirmatory_symbols"] == ["1HZ100V", "R_100"]
     assert reg["tests"] and reg["alpha_family"] == 0.05
+
+
+def test_amendment_5_is_append_only_after_amendment_4_and_registers_a_consistent_forward_test():
+    try:
+        a4 = _git("log", "--format=%h", "-SAMENDMENT-4-MARKER", "--", "docs/kill-criterion.md").split()[-1]
+        before = _git("show", f"{a4}:docs/kill-criterion.md")
+    except (subprocess.CalledProcessError, IndexError):
+        pytest.skip("amendment 4 commit not available in this checkout")
+    current = (ROOT / "docs" / "kill-criterion.md").read_text()
+    assert current.startswith(before) and current.count("AMENDMENT-5-MARKER") == 1
+    reg = load_registration()
+    ft = reg["forward_test"]
+    assert reg["data_cutoff_epoch"] == 1794700800 and reg["confirmatory_symbols"] == ["1HZ100V", "R_100"]      # Gate 1 values untouched
+    assert ft["symbols"] == reg["confirmatory_symbols"]
+    assert ft["family_size_k"] == len(ft["strategies"]) * len(ft["symbols"]) == 14
+    from derivbot.signals.strategies import default_strategies
+    assert sorted(ft["strategies"]) == sorted(default_strategies())                          # exactly the committed default strategies
+    assert all(s.duration_ticks == ft["duration_ticks"] for s in default_strategies().values())
+    from derivbot.stats.edge import breakeven_p
+    assert ft["p_break_even"] == pytest.approx(breakeven_p(ft["ratio_r"]), abs=1e-5)
+    assert ft["n_min"] == required_n(ft["p_break_even"], ft["delta"], ft["alpha_family"] / ft["family_size_k"], ft["power"])
+    assert ft["n_eval"] >= ft["n_min"] and ft["n_eval"] % 100 == 0
+    assert ft["wilson_confidence"] == pytest.approx(1 - ft["alpha_family"] / ft["family_size_k"], abs=1e-6)
+    assert ft["entry_offset_ticks"] == 1 and ft["live_order_cooldown_s"] >= 60
