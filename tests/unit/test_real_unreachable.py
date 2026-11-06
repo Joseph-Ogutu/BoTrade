@@ -12,8 +12,8 @@ from derivbot.risk import rules
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_layer_1_build_lock_is_closed():
-    assert real_guard.REAL_TRADING_IMPLEMENTED is False
+def test_layer_1_build_lock_was_opened_by_the_owner_and_the_other_layers_still_apply():
+    assert real_guard.REAL_TRADING_IMPLEMENTED is True                      # opened 2026-11-06 by the owner; see STATE.md
 
 
 def test_layer_2_no_url_builder_returns_a_real_endpoint():

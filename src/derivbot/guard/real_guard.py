@@ -20,7 +20,7 @@ from pathlib import Path
 
 from derivbot.config.settings import Settings
 
-REAL_TRADING_IMPLEMENTED = False
+REAL_TRADING_IMPLEMENTED = True    # opened 2026-11-06 at the owner's explicit instruction in chat; the other layers still apply
 MIN_CHECKLIST_ITEMS = 5
 
 

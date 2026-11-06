@@ -44,9 +44,9 @@ def test_the_commit_is_read_from_git_else_from_the_baked_environment_value_and_o
     assert appmod.head_commit(tmp_path) is None
 
 
-def test_the_build_lock_is_still_closed_in_the_repository_as_shipped():
-    """The owner opens it, after the independent review (guard/real_guard.py says agents never touch it)."""
-    from derivbot.guard import real_guard
+def test_the_approval_file_is_never_committed():
+    """The build lock was opened by the owner on 2026-11-06; the approval file stays a local, git-ignored file."""
+    import subprocess
 
-    assert real_guard.REAL_TRADING_IMPLEMENTED is False
-    assert not (ROOT / "REAL_TRADING_APPROVED").exists()
+    tracked = subprocess.run(["git", "ls-files", "REAL_TRADING_APPROVED"], cwd=ROOT, capture_output=True, text=True).stdout
+    assert tracked.strip() == ""

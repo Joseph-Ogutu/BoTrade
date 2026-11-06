@@ -72,11 +72,11 @@ def test_every_incomplete_combination_of_conditions_resolves_demo_and_names_what
         assert set(d.failed) == set(CONDITIONS) - set(combo), combo
 
 
-def test_with_the_production_build_lock_even_all_five_conditions_stay_demo(tmp_path):
+def test_with_the_build_lock_closed_even_all_five_conditions_stay_demo(tmp_path, monkeypatch):
+    monkeypatch.setattr(rg, "REAL_TRADING_IMPLEMENTED", False)               # the shipped value is True since the owner opened it
     s, r, ep = build(tmp_path, set(CONDITIONS))
     d = rg.resolve_mode(s, repo_root=r, head_commit=HEAD, otp_endpoint_mode=ep)          # default build_lock=True
     assert d.mode is rg.Mode.DEMO and "not implemented in this build" in " ".join(d.reasons)
-    assert rg.REAL_TRADING_IMPLEMENTED is False
 
 
 def test_the_committed_repository_and_defaults_resolve_demo():
