@@ -260,7 +260,7 @@ dialog form{display:grid;gap:12px} dialog h1{margin:0;font-size:1.1rem} dialog p
           <div class="big" id="realBal">-</div>
           <div class="chip warn" id="realChip">view only</div>
         </div>
-        <div class="lockrow"><svg class="ic"><use href="#i-lock"/></svg><span id="lockText">Trading on the real account is locked in this build. The balance is read-only and refreshes every 15 seconds.</span></div>
+        <div class="lockrow"><svg class="ic"><use href="#i-lock"/></svg><span id="lockText">This card is read-only and refreshes every 15 seconds. Real trading runs in its own service and starts by itself when a strategy passes the forward test.</span></div>
       </article>
     </section>
 
@@ -308,7 +308,7 @@ dialog form{display:grid;gap:12px} dialog h1{margin:0;font-size:1.1rem} dialog p
         </article>
       </div>
     </section>
-    <footer>Read only except the kill switch. Real-money trading is locked in this build.</footer>
+    <footer>Read only except the kill switch and its release. Real-money trading starts only after a strategy passes the forward test.</footer>
   </main>
 
   <dialog id="relDlg" aria-labelledby="rt">
@@ -459,7 +459,7 @@ function render(d){
   chip($("demoChip"),realMode?"info":"ok",realMode?"view only":"bot trades here",false);
   if(realMode){chip(rc,"bad","REAL MONEY: the bot trades here",false);rc.insertBefore(icon("i-alert",true),rc.firstChild)}
   else{chip(rc,"warn",a&&a.error?"view only, refresh failed":"view only",false);rc.insertBefore(icon("i-lock",true),rc.firstChild)}
-  $("lockText").textContent=realMode?"This bot is trading this account with real money, within the daily rules and hard limits. The kill switch stops it at once.":"Trading on the real account is locked in this build. The balance is read-only and refreshes every 15 seconds.";
+  $("lockText").textContent=realMode?"This bot is trading this account with real money, within the daily rules and hard limits. The kill switch stops it at once.":"This card is read-only and refreshes every 15 seconds. Real trading runs in its own service and starts by itself when a strategy passes the forward test.";
 
   var t=d.today||{},states=t.intent_states||{},total=0,rej=states.RISK_REJECTED||0;Object.keys(states).forEach(function(k){total+=states[k]});
   setText("kTrades",String(total));$("kTradesSub").textContent=rej+" stopped by risk checks";
