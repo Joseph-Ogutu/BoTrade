@@ -39,6 +39,12 @@ def repo(tmp_path, *, approved=True, checklist=True, commit=HEAD):
 REAL_ENV = {"TRADING_MODE": "real", "ALLOW_REAL_TRADING": "true", "DERIV_APP_ID_REAL": "999", "DERIV_PAT_REAL": "pat_FAKE_real_token_000",
             "DERIV_ACCOUNT_ID_REAL": "REAL-ACC-1"}
 
+@pytest.fixture(autouse=True)
+def _checklist_required(monkeypatch):
+    """The shipped default is off (owner removed it); these tests exercise the check itself, so they switch it on."""
+    monkeypatch.setattr("derivbot.guard.real_guard.CHECKLIST_REQUIRED", True)
+
+
 CONDITIONS = ["mode_is_real", "allow_flag", "approval_file", "real_credentials_and_endpoint", "checklist"]
 
 
@@ -183,3 +189,10 @@ def test_no_source_file_builds_or_hard_codes_a_real_websocket_url_except_the_end
         if p.name == "endpoint.py":
             continue
         assert "ws/real" not in p.read_text(), p
+
+
+def test_the_shipped_default_does_not_require_the_checklist(tmp_path, monkeypatch):
+    monkeypatch.setattr(rg, "CHECKLIST_REQUIRED", False)
+    s, r, ep = build(tmp_path, {"mode_is_real", "allow_flag", "approval_file", "real_credentials_and_endpoint"})
+    d = rg.resolve_mode(s, repo_root=r, head_commit=HEAD, otp_endpoint_mode=ep, build_lock=False)
+    assert d.mode is rg.Mode.REAL and d.failed == []

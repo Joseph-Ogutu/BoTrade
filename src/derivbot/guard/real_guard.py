@@ -22,6 +22,9 @@ from derivbot.config.settings import Settings
 
 REAL_TRADING_IMPLEMENTED = True    # opened 2026-11-06 at the owner's explicit instruction in chat; the other layers still apply
 MIN_CHECKLIST_ITEMS = 5
+# The signed docs/live-readiness.md used to be a fifth condition. The owner removed that requirement on 2026-11-10 ("zero sign off") and
+# the Gate 1 data-approval line for real signals (app.py). The check below is kept, switched off; set True to require it again.
+CHECKLIST_REQUIRED = False
 
 
 class Mode(str, Enum):
@@ -88,8 +91,9 @@ def resolve_mode(s: Settings, *, repo_root: str | Path, head_commit: str | None,
         "allow_flag": s.allow_real_trading is True,
         "approval_file": _approval_ok(root, head_commit),
         "real_credentials_and_endpoint": _real_credentials_ok(s, otp_endpoint_mode),
-        "checklist": _checklist_ok(root),
     }
+    if CHECKLIST_REQUIRED:
+        checks["checklist"] = _checklist_ok(root)
     failed = [k for k, ok in checks.items() if not ok]
     if failed:
         return ModeDecision(Mode.DEMO, failed, [f"condition not met: {k}" for k in failed])

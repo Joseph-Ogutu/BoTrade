@@ -30,7 +30,7 @@ from alembic.script import ScriptDirectory
 from sqlalchemy import Engine, text
 
 from derivbot.api.app import CONTAINER_BIND, create_app, validate_bind_host
-from derivbot.backtest.permit import RealDataNotApproved, require_real_data_approval
+from derivbot.backtest.permit import Approval, RealDataNotApproved, require_real_data_approval
 from derivbot.common.logs import setup_logging
 from derivbot.config.risk import load_risk_config, load_strategy_approvals
 from derivbot.config.settings import Settings, load_settings, parse_env_file
@@ -259,7 +259,12 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
 
     runner = None
     try:
-        approval = require_real_data_approval(root)
+        if real_mode:
+            # Owner instruction 2026-11-10: no Gate 1 record or data-approval line is required to start real signals. This does not touch the
+            # strategy approval (config/strategies.json), which is still required and is written only from a recorded forward-test pass.
+            approval = Approval(dt.date.today().isoformat(), "owner (requirement waived by the owner, 2026-11-10)", "WAIVED")
+        else:
+            approval = require_real_data_approval(root)
         runner = SignalRunner(approval, approvals, default_strategies(), SYMBOLS[0], account_id,
                               lambda req: asyncio.get_event_loop().create_task(executor.submit(req)), mode="real" if real_mode else "demo")
         fresh.add_sink(runner.on_tick)

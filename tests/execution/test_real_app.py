@@ -35,6 +35,12 @@ def _head(monkeypatch):
     monkeypatch.setattr(appmod, "head_commit", lambda root: HEAD)
 
 
+@pytest.fixture(autouse=True)
+def _checklist_required(monkeypatch):
+    """The shipped default is off (owner removed it); these tests exercise the check itself, so they switch it on."""
+    monkeypatch.setattr("derivbot.guard.real_guard.CHECKLIST_REQUIRED", True)
+
+
 def real_root(tmp_path, *, approval=True, checklist=True, risk=None, strategies=None):
     (tmp_path / "config").mkdir(parents=True, exist_ok=True)
     (tmp_path / "docs").mkdir(parents=True, exist_ok=True)
