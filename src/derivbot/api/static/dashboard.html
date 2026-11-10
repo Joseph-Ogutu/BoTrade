@@ -55,7 +55,7 @@ svg.ic.sm{width:14px;height:14px}
 .rail a{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;border-radius:var(--radius-sm);color:var(--muted);text-decoration:none;font-size:.66rem;font-weight:650;letter-spacing:.02em}
 .rail a:hover,.rail a.on{color:var(--accent);background:var(--accent-soft)}
 .main{padding-bottom:80px}
-@media (min-width:900px){
+@media (min-width:768px){
   .rail{top:0;bottom:0;right:auto;width:68px;flex-direction:column;justify-content:flex-start;align-items:center;gap:6px;padding:12px 8px;border-top:0;border-right:1px solid var(--line)}
   .rail .logo{display:grid;margin-bottom:10px}
   .rail a{flex:none;width:52px;padding:9px 0}
@@ -133,6 +133,11 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 .arow .grow{flex:1;min-width:0}
 .lockrow{display:flex;gap:10px;align-items:flex-start;color:var(--muted);font-size:.8rem;background:var(--surface2);border-radius:var(--radius-sm);padding:10px 12px}
 
+@media (min-width:700px) and (max-width:1099px){
+  .acct{grid-template-columns:1fr 1fr}
+  .acct h2,.acct .lockrow{grid-column:1 / -1}
+  .tw > .g{grid-template-columns:1fr 1fr}
+}
 .kpis{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:12px}
 @media (min-width:700px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (min-width:1100px){.kpis{grid-template-columns:repeat(6,minmax(0,1fr))}}
@@ -234,10 +239,19 @@ dialog form{display:grid;gap:12px} dialog h1{margin:0;font-size:1.1rem} dialog p
 .row2{display:flex;gap:10px;justify-content:flex-end}
 
 @media (max-width:640px){
-  #signout span,#barKill span{display:none} #signout,#barKill{padding:0;width:38px}
-  .clock{display:none}
-  .brand small{display:none}
+  #signout span,#barKill span{display:none}
+  #signout,#barKill,button.icon{padding:0;width:36px;min-height:36px}
+  .clock,.brand small,.brand .bn{display:none}
+  .bar .in{flex-wrap:nowrap;gap:6px;padding-top:7px;padding-bottom:7px}
+  .bar .in .logo{width:30px;height:30px}
+  .tp{padding:5px 12px 5px 0;margin-right:12px;gap:7px;font-size:.72rem}
+  .tp .p{font-size:.8rem}
   .mstats{grid-template-columns:repeat(2,1fr)}
+  .wrap{padding-left:10px;padding-right:10px}
+  .card{padding:13px}
+  .chart svg,.chart .none{height:190px}
+  .mk{grid-template-columns:1fr}
+  .big{font-size:1.9rem}
 }
 /* ---------- motion ---------- */
 .flash{animation:fl .6s ease-out}
@@ -284,7 +298,7 @@ dialog form{display:grid;gap:12px} dialog h1{margin:0;font-size:1.1rem} dialog p
 <div class="main">
 <header class="bar hidden" id="bar">
   <div class="in">
-    <div class="brand"><span class="logo"><svg viewBox="0 0 24 24"><path d="M4 16l5-5 4 4 7-8"/><path d="M15 7h5v5"/></svg></span><div>BoTrade<small>Trading console</small></div></div>
+    <div class="brand"><span class="logo"><svg viewBox="0 0 24 24"><path d="M4 16l5-5 4 4 7-8"/><path d="M15 7h5v5"/></svg></span><div><span class="bn">BoTrade</span><small>Trading console</small></div></div>
     <span class="chip bad hidden" id="realBadge"><svg class="ic sm"><use href="#i-alert"/></svg>REAL MONEY</span>
     <span class="sp"></span>
     <span class="clock" id="clock" aria-hidden="true">--:--:-- UTC</span>
@@ -527,7 +541,7 @@ function renderLive(d){
   var ra=d.reconcile_age_s;chip($("sRecon"),ra===null||ra===undefined?"warn":(ra>120?"warn":"ok"),secs(ra),true);
   var ta=d.tick_age_s;chip($("sTick"),ta===null||ta===undefined?"warn":(ta>10?"warn":"ok"),ta===null||ta===undefined?"no ticks":secs(ta),true);
   $("killBtn").classList.toggle("hidden",!!ks.engaged);$("relBtn").classList.toggle("hidden",!ks.engaged);$("barKill").classList.toggle("hidden",!!ks.engaged);
-  lastOk=Date.now();setLive("ok","live "+new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"}));
+  lastOk=Date.now();setLive("ok","live");
 }
 function pollLive(){
   api("/status").then(function(r){
