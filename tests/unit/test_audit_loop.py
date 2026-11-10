@@ -85,3 +85,22 @@ def test_store_verdict_replaces_the_previous_verdict_so_a_stale_failure_can_be_c
     store_verdict(kv, GOOD, 12, NOW)
     v = last_verdict(kv)
     assert v["passed"] is True and v["trades"] == 12 and v["failed"] == []
+
+
+def test_the_real_account_has_its_own_verdict_key_and_never_touches_the_demo_one():
+    from derivbot.audit.loop import KEY, audit_key, last_verdict, store_verdict
+
+    class KV:
+        def __init__(self):
+            self.d = {}
+
+        def set(self, k, v, ttl):
+            self.d[k] = v
+
+        def get(self, k):
+            return self.d.get(k)
+
+    kv = KV()
+    assert audit_key("demo") == KEY and audit_key("real") != KEY
+    store_verdict(kv, [], 1, __import__("datetime").datetime.now(__import__("datetime").UTC), audit_key("real"))
+    assert last_verdict(kv) is None and last_verdict(kv, audit_key("real")) is not None

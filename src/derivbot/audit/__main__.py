@@ -40,19 +40,19 @@ FROM order_intents i
 LEFT JOIN orders o ON o.intent_id = i.id
 LEFT JOIN risk_decisions rd ON rd.intent_id = i.id
 LEFT JOIN config_versions cv ON cv.id = rd.config_version_id
-WHERE i.created_at >= :since ORDER BY i.created_at, i.id""")
+WHERE i.created_at >= :since AND i.mode = :mode ORDER BY i.created_at, i.id""")
 
 
 def _d(v: object) -> Decimal | None:
     return None if v is None else Decimal(str(v))
 
 
-def load_local(engine, since: dt.datetime) -> tuple[list[LocalTrade], dict[str, list[tuple[str | None, str, str]]]]:
+def load_local(engine, since: dt.datetime, mode: str = "demo") -> tuple[list[LocalTrade], dict[str, list[tuple[str | None, str, str]]]]:
     with engine.connect() as c:
-        rows = c.execute(LOCAL_SQL, {"since": since}).all()
+        rows = c.execute(LOCAL_SQL, {"since": since, "mode": mode}).all()
         evs = c.execute(text("SELECT e.intent_id::text, e.from_state, e.event, e.to_state FROM order_events e "
-                             "JOIN order_intents i ON i.id = e.intent_id WHERE i.created_at >= :since ORDER BY e.id"),
-                        {"since": since}).all()
+                             "JOIN order_intents i ON i.id = e.intent_id WHERE i.created_at >= :since AND i.mode = :mode ORDER BY e.id"),
+                        {"since": since, "mode": mode}).all()
     local = [LocalTrade(r[0], r[1], Decimal(str(r[2])), r[3], r[4], _d(r[5]), _d(r[6]), _d(r[7]), r[8], _d(r[12]), _d(r[11]), r[10], r[9], _d(r[13]), _d(r[14]))
              for r in rows]
     events: dict[str, list[tuple[str | None, str, str]]] = {}
@@ -123,9 +123,9 @@ async def load_exchange(session: DerivSession, contract_ids: list[int], kv=None,
     return ex, facts
 
 
-async def audit_once(engine, cfg, session: DerivSession, since: dt.datetime, kv=None) -> tuple[list, int]:
+async def audit_once(engine, cfg, session: DerivSession, since: dt.datetime, kv=None, mode: str = "demo") -> tuple[list, int]:
     """Run every check with an already connected session. Returns (checks, number of trades audited). Read only."""
-    local, events = load_local(engine, since)
+    local, events = load_local(engine, since, mode)          # only this account's trades: a demo trade is never expected on the real account
     if not local:
         return [], 0
     ids = [t.contract_id for t in local if t.contract_id is not None and t.state == "SETTLED"]

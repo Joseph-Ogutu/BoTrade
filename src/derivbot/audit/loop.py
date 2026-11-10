@@ -20,23 +20,29 @@ log = logging.getLogger(__name__)
 KEY = "audit:last"
 
 
+def audit_key(mode: str) -> str:
+    """Each account has its own verdict: the real bot must not overwrite or be judged by the demo one."""
+    return KEY if mode == "demo" else f"{KEY}:{mode}"
+
+
 def verdict(checks: list[Check], trades: int, now: dt.datetime) -> dict[str, Any]:
     failed = [c for c in checks if not c.passed]
     return {"at": now.astimezone(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "trades": trades, "checks": len(checks),
             "passed": not failed, "failed": [{"name": c.name, "detail": c.detail[:200]} for c in failed]}
 
 
-def store_verdict(kv: Any, checks: list[Check], trades: int, now: dt.datetime) -> dict[str, Any]:
+def store_verdict(kv: Any, checks: list[Check], trades: int, now: dt.datetime, key: str = KEY) -> dict[str, Any]:
     """Save a verdict for the dashboard (7 days). Shared by the scheduled loop and the command line --store option."""
     v = verdict(checks, trades, now)
-    kv.set(KEY, json.dumps(v), 7 * 86400)
+    kv.set(key, json.dumps(v), 7 * 86400)
     return v
 
 
 class AuditLoop:
     def __init__(self, run: Callable[[], Awaitable[tuple[list[Check], int]]], kv: Any, alert: Callable[[str, str], None],
                  session_ready: Callable[[], bool], interval_s: float = 6 * 3600.0, first_delay_s: float = 600.0,
-                 clock: Callable[[], dt.datetime] = lambda: dt.datetime.now(dt.UTC)) -> None:
+                 clock: Callable[[], dt.datetime] = lambda: dt.datetime.now(dt.UTC), key: str = KEY) -> None:
+        self.key = key
         self.run_audit, self.kv, self.alert, self.session_ready = run, kv, alert, session_ready
         self.interval_s, self.first_delay_s, self.clock = interval_s, first_delay_s, clock
 
@@ -46,7 +52,7 @@ class AuditLoop:
         checks, n = await self.run_audit()
         if not n:
             return None
-        v = store_verdict(self.kv, checks, n, self.clock())
+        v = store_verdict(self.kv, checks, n, self.clock(), self.key)
         if v["passed"]:
             log.info("accuracy audit: all %d checks passed over %d trades", v["checks"], n)
         else:
@@ -71,9 +77,9 @@ class AuditLoop:
             delay = self.interval_s
 
 
-def last_verdict(kv: Any) -> dict[str, Any] | None:
+def last_verdict(kv: Any, key: str = KEY) -> dict[str, Any] | None:
     try:
-        raw = kv.get(KEY)
+        raw = kv.get(key)
         return json.loads(raw) if raw else None
     except Exception:  # noqa: BLE001
         return None

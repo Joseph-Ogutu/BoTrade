@@ -279,7 +279,7 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
                           lambda: bool(supervisor.session), interval_s=float(os.environ.get("SOAK_INTERVAL_S", "300")))
 
     from derivbot.audit.__main__ import audit_once
-    from derivbot.audit.loop import AuditLoop
+    from derivbot.audit.loop import AuditLoop, audit_key
 
     audit_loop = None
     if supervisor is not None:
@@ -287,10 +287,12 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
             session = supervisor.session
             if session is None:
                 return [], 0
-            return await audit_once(engine, risk_cfg, session, dt.datetime(2000, 1, 1, tzinfo=dt.UTC), kv)
+            return await audit_once(engine, risk_cfg, session, dt.datetime(2000, 1, 1, tzinfo=dt.UTC), kv,
+                                    "real" if real_mode else "demo")
 
         audit_loop = AuditLoop(run_audit, kv, notifier.submit, lambda: bool(supervisor.session),
-                               interval_s=float(os.environ.get("AUDIT_INTERVAL_S", str(6 * 3600))))
+                               interval_s=float(os.environ.get("AUDIT_INTERVAL_S", str(6 * 3600))),
+                               key=audit_key("real" if real_mode else "demo"))
 
     app_box: dict[str, App] = {}
     if accounts_view is None and real_mode:
@@ -312,9 +314,9 @@ def build(settings: Settings, *, root: Path = ROOT, kv: KV | None = None, transp
         with engine.connect() as conn:
             out = build_summary(conn, dt.datetime.now(dt.UTC), "real" if real_mode else "demo")
         out["accounts"] = accounts_view.get() if accounts_view else None
-        from derivbot.audit.loop import last_verdict
+        from derivbot.audit.loop import audit_key, last_verdict
 
-        out["audit"] = last_verdict(kv)
+        out["audit"] = last_verdict(kv, audit_key("real" if real_mode else "demo"))
         if forward is not None:
             from derivbot.forward.store import counts
 

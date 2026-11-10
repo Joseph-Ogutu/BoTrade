@@ -58,3 +58,12 @@ async def test_the_loader_attaches_the_limits_in_force_when_each_trade_was_decid
     await env.executor.submit(env.intent("d1"))
     local, _ = load_local(env.engine, dt.datetime(2000, 1, 1, tzinfo=dt.UTC))
     assert local[0].max_stake == D(EXEC_CFG["max_stake_abs"]) and local[0].risk_fraction == D(EXEC_CFG["risk_per_trade_pct"])
+
+
+async def test_each_account_audits_only_its_own_trades(env):
+    """A demo trade must never be expected on the real account: the real bot's audit once failed on exactly this."""
+    res = await env.executor.submit(env.intent("m1"))
+    assert res.state.value == "SETTLED"
+    since = dt.datetime(2000, 1, 1, tzinfo=dt.UTC)
+    assert len(load_local(env.engine, since, "demo")[0]) == 1
+    assert load_local(env.engine, since, "real")[0] == [] and load_local(env.engine, since, "real")[1] == {}
