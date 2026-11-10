@@ -86,7 +86,9 @@ def test_a_runner_cannot_be_built_without_an_owner_approval():
         ForwardRunner(None, {}, ["1HZ100V"], engine=None, account_id="A", submit=lambda r: None)       # type: ignore[arg-type]
 
 
-async def test_a_disconnect_discards_open_shadow_contracts_and_is_counted():
+async def test_a_disconnect_discards_open_shadow_contracts_and_is_counted(monkeypatch):
+    monkeypatch.setattr("derivbot.forward.shadow.CONTROL_RATE", 0.0)                     # the random control must not open a second contract
+
     async def submit(req):
         pass
 
