@@ -45,3 +45,25 @@ costs nothing but time.
 
 Step 1 is about an hour. Steps 2 to 5 need N completed contracts per variant; at one decision per 5 to 10 minutes per market that is weeks,
 not days, and forex stops at weekends.
+
+## Step 1 result (2026-11-10, public endpoint, scripts/probe_markets.py, no trades, no strategy statistic)
+
+Open markets seen: forex 25 symbols, commodities 4, cryptocurrency 2, indices 2 of 12 open, synthetic 46.
+
+Quoted payout on Rise/Fall (CALL), stake 10 USD:
+
+| Symbol | Duration | Payout ratio | Break-even win rate |
+|---|---|---|---|
+| frxXAUUSD (gold) | 5 min | 0.6650 | 60.1 percent |
+| frxXAUUSD (gold) | 10 min | 0.6690 | 59.9 percent |
+| frxXAGUSD (silver) | 5 min | 0.6350 | 61.2 percent |
+| frxXAGUSD (silver) | 10 min | 0.6420 | 60.9 percent |
+| synthetic indices, for comparison | 5 ticks | about 0.90 | 52.6 percent |
+
+Not quoted (errors, cause UNVERIFIED, likely contract or duration rules on this endpoint): EURUSD, GBPUSD, USDJPY at 5 ticks, 1, 5 and 10 minutes
+(TradingDurationNotAllowed or ContractBuyValidationError); BTC, ETH, platinum and the Asian indices at all four durations.
+
+Reading: the real markets that quoted pay about 0.64 to 0.67, so a strategy would need roughly 60 percent wins to break even, against 52.6
+on the synthetics. Nothing in public literature or in our own tests suggests a simple rule wins 60 percent of short fixed-time contracts
+on gold. Under the plan's own step 1 rule (dead if break-even is above 54 percent) these markets are dead for Rise/Fall.
+Forex was not measured; it needs a different request (duration or contract type) before it can be ruled in or out.
