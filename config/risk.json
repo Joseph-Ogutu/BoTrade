@@ -13,7 +13,7 @@
   "reconcile_max_age_s": 120,
   "recent_duplicate_window_s": 30,
   "daily_reset_utc_hour": 0,
-  "max_trades_per_day": 5,
+  "max_trades_per_day": 1,
   "max_losses_per_day": 2,
   "max_consecutive_wins_per_day": 3
 }

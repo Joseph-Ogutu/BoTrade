@@ -7,7 +7,7 @@
   "max_consecutive_losses": 2,
   "max_open_positions": 1,
   "max_trades_per_hour": 3,
-  "max_trades_per_day": 5,
+  "max_trades_per_day": 1,
   "max_losses_per_day": 2,
   "max_consecutive_wins_per_day": 3,
   "max_proposal_price_slippage": "0.02",

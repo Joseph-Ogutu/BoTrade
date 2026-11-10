@@ -120,7 +120,7 @@ def test_the_shipped_real_risk_file_loads_inside_the_hard_ceilings_and_an_unset_
     root = Path(__file__).resolve().parents[2]
     shipped = json.loads((root / "config" / "risk.real.json").read_text())
     cfg = load_risk_config(root / "config" / "risk.real.json")                      # the owner's values (2026-11-06)
-    assert (cfg.max_trades_per_day, cfg.max_losses_per_day, cfg.max_consecutive_wins_per_day) == (5, 2, 3)
+    assert (cfg.max_trades_per_day, cfg.max_losses_per_day, cfg.max_consecutive_wins_per_day) == (1, 2, 3)
     assert real_limits is not None and shipped["max_open_positions"] == 1
     unset = dict(shipped, max_stake_abs="SET_BY_OWNER", risk_per_trade_pct="SET_BY_OWNER")
     f = tmp_path / "risk.json"

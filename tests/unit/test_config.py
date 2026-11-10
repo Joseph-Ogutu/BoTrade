@@ -56,7 +56,7 @@ def test_the_committed_risk_file_holds_the_values_the_owner_approved():
     assert (cfg.risk_per_trade_pct, cfg.max_stake_abs, cfg.max_daily_loss_abs) == (Decimal("0.15"), Decimal("5000.00"), Decimal("4000.00"))
     assert (cfg.max_consecutive_losses, cfg.max_open_positions, cfg.max_trades_per_hour) == (25, 1, 20)
     # 2026-11-06: the owner's option B rule for live demo bets: at most 5 a day, stop for the day at 3 losses
-    assert (cfg.max_trades_per_day, cfg.max_losses_per_day) == (5, 2)             # 2026-11-06: first 3, then the owner tightened it to 2
+    assert (cfg.max_trades_per_day, cfg.max_losses_per_day) == (1, 2)             # 2026-11-10: the owner cut it to 1 trade a day (was 5)
     assert cfg.max_consecutive_wins_per_day == 3                                  # 2026-11-06: stop for the day after 3 wins in a row
     assert cfg.max_proposal_price_slippage == Decimal("0.02") and cfg.stale_data_max_age_s == 10
     assert cfg.min_net_payout_ratio == Decimal("0.80") and cfg.reconcile_max_age_s == 120
