@@ -67,3 +67,22 @@ Reading: the real markets that quoted pay about 0.64 to 0.67, so a strategy woul
 on the synthetics. Nothing in public literature or in our own tests suggests a simple rule wins 60 percent of short fixed-time contracts
 on gold. Under the plan's own step 1 rule (dead if break-even is above 54 percent) these markets are dead for Rise/Fall.
 Forex was not measured; it needs a different request (duration or contract type) before it can be ruled in or out.
+
+## Step 1 addendum: forex quotes (2026-11-10, public endpoint, no trades)
+
+Forex Rise/Fall (CALL) has a 15 minute minimum on this endpoint (contracts_for frxEURUSD), which explains the earlier errors. Quotes, stake 10 USD:
+
+| Symbol | 15 min | 30 min | 1 h | 4 h |
+|---|---|---|---|---|
+| frxEURUSD | 0.733 (BE 57.7%) | 0.786 (56.0%) | 0.786 (56.0%) | 0.787 (56.0%) |
+| frxGBPUSD | 0.792 (55.8%) | 0.786 (56.0%) | 0.786 (56.0%) | 0.787 (56.0%) |
+| frxUSDJPY | 0.895 (52.8%) | 0.819 (55.0%) | 0.819 (55.0%) | 0.819 (55.0%) |
+| frxXAUUSD | 0.741 (57.4%) | 0.740 (57.5%) | 0.741 (57.4%) | 0.743 (57.4%) |
+
+BE is the break-even win rate. Bitcoin: no Rise/Fall duration allowed at these lengths. One quote is one moment; payouts move with volatility and time of day
+(UNVERIFIED how much), so the 15 minute USDJPY 0.895 may not hold.
+
+Reading: forex needs 55 to 58 percent wins to break even, 3 to 5 points above the synthetics. The only close case is USDJPY at 15 minutes (52.8 percent),
+and it is one snapshot. Speed is the other cost: one contract per pair per 15 minutes means 7,800 contracts take about 81 days of continuous trading on one
+symbol, and forex is closed at weekends, so a single-market test would run about 4 months. Conclusion: not worth registering now. If anything is
+revisited, USDJPY 15 minutes is the only candidate, after logging its payout across a full week to see whether 0.895 is typical.
